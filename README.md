@@ -41,7 +41,7 @@ TradeX utilizes a direct REST routing layer to communicate with Groq's generativ
 3. Replace the placeholder string in the apiKey variable with your unique token: let apiKey = "".
 
 
-#👨‍💻 Installation & Deployment
+##  👨‍💻 Installation & Deployment
 To clone and run TradeX Terminal locally on your machine:
 
 
@@ -56,7 +56,7 @@ open TradeX.xcodeproj
 Select a target simulator profile (e.g., iPhone 17 Pro) and hit ⌘ + R to compile and launch.
 
 
-📄 License
+##  📄 License
 This project is proprietary and built for personal quantitative research and portfolio monitoring.
 
 
