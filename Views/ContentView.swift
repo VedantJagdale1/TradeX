@@ -36,33 +36,8 @@ struct ContentView: View {
         }
     }
 }
-struct DashboardView: View {
-    var body: some View {
-        Text("Dashboard Screen")
-            .font(.title)
-    }
-}
 
-struct MarketExplorerView: View {
-    var body: some View {
-        Text("Market Explorer Screen")
-            .font(.title)
-    }
-}
 
-struct PortfolioView: View {
-    var body: some View {
-        Text("Portfolio Screen")
-            .font(.title)
-    }
-}
-
-struct AIAssistantView: View {
-    var body: some View {
-        Text("AI Assistant & Journal")
-            .font(.title)
-    }
-}
 
 #Preview {
     ContentView()

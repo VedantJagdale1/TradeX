@@ -14,47 +14,68 @@ final class PortfolioManager {
     
     private init() {}
     
-    /// Adds a stock to the portfolio or increments quantity if it already exists.
-    /// The holding appears immediately, then current price updates if live data is available.
-    func addStock(
-        symbol: String,
-        companyName: String,
-        quantity: Int,
-        buyPrice: Double,
-        modelContext: ModelContext
-    ) async {
-        let holding = fetchHolding(symbol: symbol, modelContext: modelContext)
-        
-        if let holding {
-            let totalQuantity = holding.quantity + quantity
-            let totalCost = (Double(holding.quantity) * holding.avgBuyPrice) + (Double(quantity) * buyPrice)
-            holding.quantity = totalQuantity
-            holding.avgBuyPrice = totalCost / Double(totalQuantity)
-        } else {
-            let newHolding = PortfolioHolding(
-                symbol: symbol,
-                companyName: companyName,
-                quantity: quantity,
-                avgBuyPrice: buyPrice,
-                currentPrice: buyPrice
-            )
-            modelContext.insert(newHolding)
+        func addStock(
+            symbol: String,
+            companyName: String,
+            quantity: Int,
+            buyPrice: Double,
+            modelContext: ModelContext
+        ) async {
+            let totalCost = Double(quantity) * buyPrice
+            let holding = fetchHolding(symbol: symbol, modelContext: modelContext)
+            
+      
+            let settingsDescriptor = FetchDescriptor<UserSettings>()
+            let appSettings = try? modelContext.fetch(settingsDescriptor).first
+            
+            if let holding {
+                let totalQuantity = holding.quantity + quantity
+                let dynamicTotalCost = (Double(holding.quantity) * holding.avgBuyPrice) + totalCost
+                holding.quantity = totalQuantity
+                holding.avgBuyPrice = dynamicTotalCost / Double(totalQuantity)
+            } else {
+                let newHolding = PortfolioHolding(
+                    symbol: symbol,
+                    companyName: companyName,
+                    quantity: quantity,
+                    avgBuyPrice: buyPrice,
+                    currentPrice: buyPrice
+                )
+                modelContext.insert(newHolding)
+            }
+            
+     
+            if let appSettings {
+                appSettings.availableCash = max(0, appSettings.availableCash - totalCost)
+            } else {
+                
+                let defaultStartingCash = 274500.00
+                let newSettings = UserSettings(availableCash: max(0, defaultStartingCash - totalCost))
+                modelContext.insert(newSettings)
+            }
+            
+            save(modelContext)
+            
+            do {
+                let liveCurrentPrice = try await MarketAPIService.shared.fetchStockPrice(symbol: symbol)
+                updateCurrentPrice(symbol: symbol, currentPrice: liveCurrentPrice, modelContext: modelContext)
+            } catch {
+                print("Could not fetch current price for \(symbol): \(error)")
+            }
         }
-        
-        save(modelContext)
-        
-        do {
-            let liveCurrentPrice = try await MarketAPIService.shared.fetchStockPrice(symbol: symbol)
-            updateCurrentPrice(symbol: symbol, currentPrice: liveCurrentPrice, modelContext: modelContext)
-        } catch {
-            print("Could not fetch current price for \(symbol): \(error)")
-        }
-    }
     
     func removeStock(_ holding: PortfolioHolding, modelContext: ModelContext) {
-        modelContext.delete(holding)
-        save(modelContext)
-    }
+            let refundAmount = holding.currentValue
+            
+            
+            let settingsDescriptor = FetchDescriptor<UserSettings>()
+            if let appSettings = try? modelContext.fetch(settingsDescriptor).first {
+                appSettings.availableCash += refundAmount
+            }
+            
+            modelContext.delete(holding)
+            save(modelContext)
+        }
     
     func updateCurrentPrice(symbol: String, currentPrice: Double, modelContext: ModelContext) {
         guard let holding = fetchHolding(symbol: symbol, modelContext: modelContext) else { return }
