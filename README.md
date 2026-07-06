@@ -28,14 +28,14 @@ TradeX/
 ├── Models/        # SwiftData persistent schemas (Holdings, UserSettings, ChatMessage)
 ├── ViewModels/    # State management, calculations, and mathematical models
 ├── Views/         # Modular SwiftUI Interfaces (Dashboard, AIAssistantView, AppIconPreview)
-
+```
 
 
 ###   🔑 Setup & API Configuration
-TradeX utilizes a direct REST routing layer to communicate with Google's generative servers. To configure your local workspace environment:
+TradeX utilizes a direct REST routing layer to communicate with Groq's generative servers. To configure your local workspace environment:
 
 1. Obtain a free API key from https://console.groq.com/keys.
 
 2. Open GroqService.swift.
 
-3. Replace the placeholder string in the apiKey variable with your unique token: let apiKey = ""
+3. Replace the placeholder string in the apiKey variable with your unique token: let apiKey = "".
