@@ -7,7 +7,7 @@ TradeX Terminal is a high-performance, minimalist iOS portfolio management and q
 ## 🚀 Features
 
 * **SwiftData Portfolio Tracking:** Complete, persistent structural accounting for live equity holdings, average buy costs, current market valuations, and real-time Profit & Loss (PnL) metrics.
-* **AI Assistant Integration:** A direct, zero-dependency REST HTTP network implementation connecting seamlessly to the frontier-class **Gemini API** for deep risk analysis, asset distribution audits, and strategic financial advice.
+* **AI Assistant Integration:** A direct, zero-dependency REST HTTP network implementation connecting seamlessly to the frontier-class **Groq  API** for deep risk analysis, asset distribution audits, and strategic financial advice.
 * **Intelligent Keyboard Management:** A localized layout offering an advanced interactive input bar with a responsive keyboard dismissal toolbar for an unhindered user experience.
 * **Minimalist Terminal UI:** Dark-mode optimized, performance-first interface built entirely natively using SwiftUI.
 
@@ -39,3 +39,24 @@ TradeX utilizes a direct REST routing layer to communicate with Groq's generativ
 2. Open GroqService.swift.
 
 3. Replace the placeholder string in the apiKey variable with your unique token: let apiKey = "".
+
+
+👨‍💻 Installation & Deployment
+To clone and run TradeX Terminal locally on your machine:
+
+Bash
+# Clone the repository
+git clone [https://github.com/VedantJagdale1/TradeX.git]
+
+# Open the project root
+cd TradeX
+
+# Launch via Xcode
+open TradeX.xcodeproj
+Select a target simulator profile (e.g., iPhone 17 Pro) and hit ⌘ + R to compile and launch.
+
+
+📄 License
+This project is proprietary and built for personal quantitative research and portfolio monitoring.
+
+
