@@ -30,7 +30,8 @@ TradeX/
 ├── Views/         # Modular SwiftUI Interfaces (Dashboard, AIAssistantView, AppIconPreview)
 
 
-🔑 Setup & API Configuration
+
+###   🔑 Setup & API Configuration
 TradeX utilizes a direct REST routing layer to communicate with Google's generative servers. To configure your local workspace environment:
 
 1. Obtain a free API key from https://console.groq.com/keys.
