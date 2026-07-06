@@ -15,10 +15,10 @@ TradeX Terminal is a high-performance, minimalist iOS portfolio management and q
 
 ## 🛠️ Architecture & Tech Stack
 
-* **Framework:** SwiftUI (iOS 17+)
+* **Framework:** SwiftUI (iOS 18+)
 * **Database & Persistence:** SwiftData
 * **Network Layer:** Native `URLSession` (no external SDK bloat for AI endpoints)
-* **AI Engine:** Google Gemini API (`gemini-2.5-flash` endpoint)
+* **AI Engine:** Groq (`llama-3.3-70b-versatile` endpoint)
 * **Language:** Swift 5.10+
 
 ### Project Structure
@@ -28,3 +28,13 @@ TradeX/
 ├── Models/        # SwiftData persistent schemas (Holdings, UserSettings, ChatMessage)
 ├── ViewModels/    # State management, calculations, and mathematical models
 ├── Views/         # Modular SwiftUI Interfaces (Dashboard, AIAssistantView, AppIconPreview)
+
+
+🔑 Setup & API Configuration
+TradeX utilizes a direct REST routing layer to communicate with Google's generative servers. To configure your local workspace environment:
+
+1. Obtain a free API key from https://console.groq.com/keys.
+
+2. Open GroqService.swift.
+
+3. Replace the placeholder string in the apiKey variable with your unique token: let apiKey = ""
