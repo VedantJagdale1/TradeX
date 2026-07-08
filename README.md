@@ -1,4 +1,4 @@
-# TradeX Terminal 📊🤖
+# TradeX 📊🤖
 
 TradeX Terminal is a high-performance, minimalist iOS portfolio management and quantitative analysis application designed for the Indian stock market. It combines clean, data-dense terminal design aesthetics with local data persistence and direct AI-powered portfolio orchestration.
 
