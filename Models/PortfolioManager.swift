@@ -316,7 +316,11 @@ final class PortfolioManager {
             let quotes = await withTaskGroup(of: (String, Double?).self) { group in
                 for symbol in symbols {
                     group.addTask {
-                        (symbol, try? await MarketAPIService.shared.fetchStockPrice(symbol: symbol))
+                        // A forced refresh is user-initiated and must bypass the cache.
+                        (symbol, try? await MarketAPIService.shared.fetchStockPrice(
+                            symbol: symbol,
+                            maxAge: force ? 0 : QuoteCache.defaultMaxAge
+                        ))
                     }
                 }
 

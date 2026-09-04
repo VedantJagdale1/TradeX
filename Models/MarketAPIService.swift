@@ -6,15 +6,51 @@
 //
 
 import Foundation
-enum NetworkError: Error {
+enum NetworkError: Error, LocalizedError {
     case invalidURL
     case noData
     case decodingError
+    case rateLimited
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: return "That symbol produced an invalid request."
+        case .noData: return "The market data service didn't respond."
+        case .decodingError: return "The market data service returned something unexpected."
+        case .rateLimited: return "Too many requests to the market data service. Prices will refresh shortly."
+        }
+    }
 }
 
 class MarketAPIService {
     static let shared = MarketAPIService()
     private init() {}
+
+    /// Every request goes through here.
+    ///
+    /// Yahoo's chart endpoint is undocumented and unauthenticated; it answers more
+    /// reliably with a browser-shaped User-Agent, and it rate-limits, which the callers
+    /// need to be able to distinguish from "no data".
+    private func get(_ url: URL) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.setValue(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15",
+            forHTTPHeaderField: "User-Agent"
+        )
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.noData
+        }
+        if httpResponse.statusCode == 429 {
+            throw NetworkError.rateLimited
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw NetworkError.noData
+        }
+        return data
+    }
     
     /// Returns the price series **and** the quote metadata from the same response.
     ///
@@ -32,13 +68,9 @@ class MarketAPIService {
             throw NetworkError.invalidURL
         }
         
-        let (data, response) = try await URLSession.shared.data(from: url)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw NetworkError.noData
-        }
-        
+        let data = try await get(url)
         let result = try JSONDecoder().decode(YahooChartResponse.self, from: data)
-        
+
         guard let chartResult = result.chart.result?.first,
               let timestamps = chartResult.timestamp,
               let closePrices = chartResult.indicators?.quote?.first?.close else {
@@ -65,19 +97,20 @@ class MarketAPIService {
     ///
     /// Index tickers (`^NSEI`, `^BSESN`) are not NSE equities and must not be suffixed.
     /// `URL(string:)` percent-encodes the leading caret on its own.
-    func fetchIndexQuote(symbol: String) async throws -> IndexQuote {
+    func fetchIndexQuote(symbol: String, maxAge: TimeInterval = QuoteCache.defaultMaxAge) async throws -> IndexQuote {
+        try await QuoteCache.shared.indexQuote(for: symbol, maxAge: maxAge) {
+            try await self.fetchIndexQuoteUncached(symbol: symbol)
+        }
+    }
+
+    private func fetchIndexQuoteUncached(symbol: String) async throws -> IndexQuote {
         let urlString = "https://query1.finance.yahoo.com/v8/finance/chart/\(symbol)?interval=1d&range=1d"
 
         guard let url = URL(string: urlString) else {
             throw NetworkError.invalidURL
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
-
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw NetworkError.noData
-        }
-
+        let data = try await get(url)
         let result = try JSONDecoder().decode(YahooChartResponse.self, from: data)
 
         guard let meta = result.chart.result?.first?.meta,
@@ -89,7 +122,16 @@ class MarketAPIService {
         return IndexQuote(price: price, previousClose: previousClose)
     }
 
-    func fetchStockPrice(symbol: String) async throws -> Double {
+    /// A quote for one stock, shared through the cache.
+    ///
+    /// Pass `maxAge: 0` for a user-initiated refresh that must hit the network.
+    func fetchStockPrice(symbol: String, maxAge: TimeInterval = QuoteCache.defaultMaxAge) async throws -> Double {
+        try await QuoteCache.shared.price(for: symbol, maxAge: maxAge) {
+            try await self.fetchStockPriceUncached(symbol: symbol)
+        }
+    }
+
+    private func fetchStockPriceUncached(symbol: String) async throws -> Double {
         let yahooSymbol = symbol.hasSuffix(".NS") ? symbol : "\(symbol).NS"
         let urlString = "https://query1.finance.yahoo.com/v8/finance/chart/\(yahooSymbol)?interval=1d&range=1d"
         
@@ -97,14 +139,9 @@ class MarketAPIService {
             throw NetworkError.invalidURL
         }
         
-        let (data, response) = try await URLSession.shared.data(from: url)
-        
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw NetworkError.noData
-        }
-        
+        let data = try await get(url)
         let result = try JSONDecoder().decode(YahooChartResponse.self, from: data)
-        
+
         guard let price = result.chart.result?.first?.meta.regularMarketPrice else {
             throw NetworkError.decodingError
         }
@@ -233,5 +270,132 @@ enum MarketSession {
         }
 
         return candidate
+    }
+}
+
+
+/// Shared quote cache sitting in front of the market API.
+///
+/// Nine call sites poll for prices — holdings refresh, daily snapshot, price alerts,
+/// limit orders, the watchlist, index cards. Without this, opening the Dashboard fetches
+/// the same symbol several times within a second, and a rate-limit response degrades
+/// every one of them silently and independently.
+actor QuoteCache {
+    static let shared = QuoteCache()
+
+    /// How long a quote stays fresh. Long enough to collapse one app-open into a single
+    /// request per symbol, short enough that prices still feel live.
+    static let defaultMaxAge: TimeInterval = 30
+
+    /// How long to stop asking after being rate-limited.
+    private static let backoffDuration: TimeInterval = 120
+
+    private struct Entry<Value> {
+        let value: Value
+        let fetchedAt: Date
+    }
+
+    private var prices: [String: Entry<Double>] = [:]
+    private var indexQuotes: [String: Entry<IndexQuote>] = [:]
+
+    /// In-flight fetches, so concurrent callers for one symbol share a single request.
+    private var priceTasks: [String: Task<Double, Error>] = [:]
+    private var indexTasks: [String: Task<IndexQuote, Error>] = [:]
+
+    private var backoffUntil: Date?
+
+    func price(
+        for symbol: String,
+        maxAge: TimeInterval,
+        fetch: @escaping @Sendable () async throws -> Double
+    ) async throws -> Double {
+        if let entry = prices[symbol], Date().timeIntervalSince(entry.fetchedAt) < maxAge {
+            return entry.value
+        }
+
+        if let stale = try rateLimitFallback(prices[symbol]?.value) {
+            return stale
+        }
+
+        if let existing = priceTasks[symbol] {
+            return try await existing.value
+        }
+
+        let task = Task { try await fetch() }
+        priceTasks[symbol] = task
+
+        do {
+            let value = try await task.value
+            priceTasks[symbol] = nil
+            prices[symbol] = Entry(value: value, fetchedAt: Date())
+            return value
+        } catch {
+            priceTasks[symbol] = nil
+            noteFailure(error)
+            // A stale quote beats no quote: the caller would otherwise see nil and
+            // silently skip an alert or an order check.
+            if let stale = prices[symbol]?.value { return stale }
+            throw error
+        }
+    }
+
+    func indexQuote(
+        for symbol: String,
+        maxAge: TimeInterval,
+        fetch: @escaping @Sendable () async throws -> IndexQuote
+    ) async throws -> IndexQuote {
+        if let entry = indexQuotes[symbol], Date().timeIntervalSince(entry.fetchedAt) < maxAge {
+            return entry.value
+        }
+
+        if let stale = try rateLimitFallback(indexQuotes[symbol]?.value) {
+            return stale
+        }
+
+        if let existing = indexTasks[symbol] {
+            return try await existing.value
+        }
+
+        let task = Task { try await fetch() }
+        indexTasks[symbol] = task
+
+        do {
+            let value = try await task.value
+            indexTasks[symbol] = nil
+            indexQuotes[symbol] = Entry(value: value, fetchedAt: Date())
+            return value
+        } catch {
+            indexTasks[symbol] = nil
+            noteFailure(error)
+            if let stale = indexQuotes[symbol]?.value { return stale }
+            throw error
+        }
+    }
+
+    /// While backed off, serve what we have and otherwise fail fast — continuing to ask
+    /// only extends the limit.
+    private func rateLimitFallback<Value>(_ stale: Value?) throws -> Value? {
+        guard let backoffUntil else { return nil }
+
+        if Date() >= backoffUntil {
+            self.backoffUntil = nil
+            return nil
+        }
+
+        if let stale { return stale }
+        throw NetworkError.rateLimited
+    }
+
+    private func noteFailure(_ error: Error) {
+        if case NetworkError.rateLimited = error {
+            backoffUntil = Date().addingTimeInterval(Self.backoffDuration)
+        }
+    }
+
+    /// Testing and manual refresh: drop everything held.
+    func invalidate() {
+        prices.removeAll()
+        indexQuotes.removeAll()
+        backoffUntil = nil
     }
 }
