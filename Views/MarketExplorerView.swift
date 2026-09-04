@@ -33,6 +33,9 @@ struct MarketExplorerView: View {
 
     @State private var indices = MarketIndex.tracked
 
+    @Query(sort: \WatchlistItem.addedAt, order: .reverse) private var watchlist: [WatchlistItem]
+    @State private var watchlistQuotes: [String: Double] = [:]
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -44,6 +47,25 @@ struct MarketExplorerView: View {
                             ForEach(indices) { index in
                                 indexCard(for: index)
                             }
+                        }
+                    }
+
+                    if !watchlist.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Watchlist")
+                                .font(.title3)
+                                .bold()
+
+                            VStack(spacing: 0) {
+                                ForEach(watchlist) { item in
+                                    watchlistRow(for: item)
+
+                                    if item.symbol != watchlist.last?.symbol {
+                                        Divider()
+                                    }
+                                }
+                            }
+                            .card(padding: 12)
                         }
                     }
 
@@ -83,6 +105,9 @@ struct MarketExplorerView: View {
         .searchable(text: $viewModel.searchText, prompt: "Search 2,000+ NSE stocks...")
         .task {
             await loadIndexLevels()
+        }
+        .task(id: watchlist.count) {
+            await loadWatchlistQuotes()
         }
 
         .sheet(item: $orderTicket) { ticket in
@@ -132,6 +157,64 @@ private extension MarketExplorerView {
         } catch {
             return error.localizedDescription
         }
+    }
+
+    func watchlistRow(for item: WatchlistItem) -> some View {
+        NavigationLink {
+            StockDetailView(stock: viewModel.stock(for: item.symbol)
+                ?? NSEStock(symbol: item.symbol, name: item.companyName, series: "EQ", isin: ""))
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.symbol)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text(item.companyName)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if let price = watchlistQuotes[item.symbol] {
+                    MoneyText(amount: price, font: .subheadline.weight(.semibold))
+                } else {
+                    ProgressView()
+                }
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                Watchlist.remove(symbol: item.symbol, in: modelContext)
+            } label: {
+                Label("Remove from Watchlist", systemImage: "star.slash")
+            }
+        }
+    }
+
+    /// Quotes for watched symbols, fetched together rather than one after another.
+    func loadWatchlistQuotes() async {
+        let symbols = watchlist.map(\.symbol)
+        guard !symbols.isEmpty else { return }
+
+        let quotes = await withTaskGroup(of: (String, Double?).self) { group in
+            for symbol in symbols {
+                group.addTask {
+                    (symbol, try? await MarketAPIService.shared.fetchStockPrice(symbol: symbol))
+                }
+            }
+            var collected: [String: Double] = [:]
+            for await (symbol, price) in group {
+                if let price { collected[symbol] = price }
+            }
+            return collected
+        }
+
+        watchlistQuotes.merge(quotes) { _, new in new }
     }
 
     /// Loads both index levels concurrently. A failure leaves that card in its

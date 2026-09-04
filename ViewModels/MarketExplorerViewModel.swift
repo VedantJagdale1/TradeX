@@ -38,6 +38,12 @@ class MarketExplorerViewModel: ObservableObject {
         setupInitialList()
     }
 
+    /// Looks up the full CSV record for a symbol, so a watchlist row can push a detail
+    /// screen with the real name, series and ISIN rather than a stub.
+    func stock(for symbol: String) -> NSEStock? {
+        stocksBySymbol[symbol]
+    }
+
     private func setupInitialList() {
         // Resolved through the symbol index so the curated order is preserved, and so a
         // symbol that isn't in the CSV trips an assertion in debug instead of silently

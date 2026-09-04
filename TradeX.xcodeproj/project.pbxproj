@@ -26,6 +26,7 @@
 		8EAA00082FFFFFFF00AB9A5C /* PerformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */; };
 		8EAA000A2FFFFFFF00AB9A5C /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00092FFFFFFF00AB9A5C /* Theme.swift */; };
 		8EAA000C2FFFFFFF00AB9A5C /* OrderTicketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA000B2FFFFFFF00AB9A5C /* OrderTicketView.swift */; };
+		8EAA000E2FFFFFFF00AB9A5C /* WatchlistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA000D2FFFFFFF00AB9A5C /* WatchlistItem.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -51,6 +52,7 @@
 		8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceView.swift; sourceTree = "<group>"; };
 		8EAA00092FFFFFFF00AB9A5C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		8EAA000B2FFFFFFF00AB9A5C /* OrderTicketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderTicketView.swift; sourceTree = "<group>"; };
+		8EAA000D2FFFFFFF00AB9A5C /* WatchlistItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistItem.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -121,6 +123,7 @@
 		8EBF52242FF5AA5100AB9A5C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				8EAA000D2FFFFFFF00AB9A5C /* WatchlistItem.swift */,
 				8EAA00032FFFFFFF00AB9A5C /* Trade.swift */,
 				8E494E372FFBBD7A00CEBF48 /* GroqService.swift */,
 				8EBF523B2FF90C7F00AB9A5C /* PortfolioManager.swift */,
@@ -219,6 +222,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBF523A2FF9099700AB9A5C /* MarketAPIService.swift in Sources */,
+				8EAA000E2FFFFFFF00AB9A5C /* WatchlistItem.swift in Sources */,
 				8EAA000C2FFFFFFF00AB9A5C /* OrderTicketView.swift in Sources */,
 				8EAA000A2FFFFFFF00AB9A5C /* Theme.swift in Sources */,
 				8EAA00082FFFFFFF00AB9A5C /* PerformanceView.swift in Sources */,

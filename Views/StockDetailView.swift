@@ -17,6 +17,15 @@ struct StockDetailView: View {
     @Query private var settings: [UserSettings]
     @State private var orderTicket: OrderTicket?
 
+    /// The point under the user's finger while scrubbing, or nil when not scrubbing.
+    @State private var scrubbed: ChartPoint?
+
+    @Query private var watchlist: [WatchlistItem]
+
+    private var isWatched: Bool {
+        watchlist.contains { $0.symbol == stock.symbol }
+    }
+
     @State private var chartData: [ChartPoint] = []
     @State private var currentPrice: Double = 0.0
     @State private var selectedRange = "1mo"
@@ -68,21 +77,32 @@ struct StockDetailView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    Text("₹\(currentPrice, specifier: "%.2f")")
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                    MoneyText(amount: scrubbed?.price ?? currentPrice, font: Theme.Typography.hero)
 
-                    HStack(spacing: 6) {
-                        HStack(spacing: 4) {
-                            Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.left")
-                            Text("\(isPositive ? "+" : "")₹\(abs(priceChange), specifier: "%.2f") (\(String(format: "%.2f", priceChangePercentage))%)")
-                        }
+                    if let scrubbed {
+                        // While scrubbing, the change line gives way to the timestamp of
+                        // the point being inspected.
+                        Text(scrubbed.date.formatted(
+                            date: .abbreviated,
+                            time: selectedRange == "1d" ? .shortened : .omitted
+                        ))
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundColor(isPositive ? Theme.profit : Theme.loss)
+                        .foregroundStyle(.secondary)
+                    } else {
+                        HStack(spacing: 6) {
+                            HStack(spacing: 4) {
+                                Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.left")
+                                Text("\(isPositive ? "+" : "")₹\(abs(priceChange), specifier: "%.2f") (\(String(format: "%.2f", priceChangePercentage))%)")
+                            }
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(isPositive ? Theme.profit : Theme.loss)
 
-                        Text(rangeCaption)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            Text(rangeCaption)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .padding(.horizontal)
@@ -127,10 +147,37 @@ struct StockDetailView: View {
                                 .foregroundStyle(isPositive ? Theme.profit : Theme.loss)
                                 .interpolationMethod(.catmullRom)
                             }
+
+                            if let scrubbed {
+                                RuleMark(x: .value("Time", scrubbed.date))
+                                    .foregroundStyle(Color.secondary.opacity(0.5))
+                                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+
+                                PointMark(
+                                    x: .value("Time", scrubbed.date),
+                                    y: .value("Price", scrubbed.price)
+                                )
+                                .foregroundStyle(isPositive ? Theme.profit : Theme.loss)
+                                .symbolSize(120)
+                            }
                         }
                         .chartXAxis(.hidden)
                         .chartYScale(domain: priceDomain)
                         .frame(height: 220)
+                        .chartOverlay { proxy in
+                            GeometryReader { geometry in
+                                Rectangle()
+                                    .fill(.clear)
+                                    .contentShape(Rectangle())
+                                    .gesture(
+                                        DragGesture(minimumDistance: 0)
+                                            .onChanged { drag in
+                                                updateScrub(at: drag.location, proxy: proxy, geometry: geometry)
+                                            }
+                                            .onEnded { _ in scrubbed = nil }
+                                    )
+                            }
+                        }
                         .padding(.horizontal)
                     } else {
                         chartUnavailableView
@@ -174,8 +221,25 @@ struct StockDetailView: View {
         }
         .navigationTitle(stock.symbol)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Watchlist.toggle(
+                        symbol: stock.symbol,
+                        companyName: stock.name,
+                        in: modelContext
+                    )
+                } label: {
+                    Image(systemName: isWatched ? "star.fill" : "star")
+                        .foregroundStyle(isWatched ? Theme.caution : Theme.accent)
+                }
+                .accessibilityLabel(isWatched ? "Remove from watchlist" : "Add to watchlist")
+                .sensoryFeedback(.selection, trigger: isWatched)
+            }
+        }
         // Keyed on the range so switching cancels the in-flight load. Without that, a slow
         // response for one range could land after a faster one and show the wrong series.
+        .sensoryFeedback(.selection, trigger: scrubbed?.id)
         .task(id: selectedRange) {
             await loadTimelineMetrics()
         }
@@ -188,6 +252,22 @@ struct StockDetailView: View {
 }
 
 private extension StockDetailView {
+
+    /// Maps a touch position to the nearest point in the series.
+    func updateScrub(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else { return }
+        let xInPlot = location.x - geometry[plotFrame].origin.x
+
+        guard let touchedDate: Date = proxy.value(atX: xInPlot),
+              let nearest = chartData.min(by: {
+                  abs($0.date.timeIntervalSince(touchedDate)) < abs($1.date.timeIntervalSince(touchedDate))
+              })
+        else { return }
+
+        if nearest.id != scrubbed?.id {
+            scrubbed = nearest
+        }
+    }
 
     /// Returns a message on failure, nil on success — the ticket renders it inline.
     func placeBuy(quantity: Int, thesis: String) async -> String? {

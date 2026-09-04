@@ -18,7 +18,8 @@ struct TradeXApp: App {
                     UserSettings.self,
                     Trade.self,
                     CashAdjustment.self,
-                    PortfolioSnapshot.self
+                    PortfolioSnapshot.self,
+                    WatchlistItem.self
                 ])
         }
     }
