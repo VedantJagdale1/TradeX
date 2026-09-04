@@ -24,6 +24,8 @@
 		8EAA00042FFFFFFF00AB9A5C /* Trade.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00032FFFFFFF00AB9A5C /* Trade.swift */; };
 		8EAA00062FFFFFFF00AB9A5C /* TradeHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00052FFFFFFF00AB9A5C /* TradeHistoryView.swift */; };
 		8EAA00082FFFFFFF00AB9A5C /* PerformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */; };
+		8EAA000A2FFFFFFF00AB9A5C /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00092FFFFFFF00AB9A5C /* Theme.swift */; };
+		8EAA000C2FFFFFFF00AB9A5C /* OrderTicketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA000B2FFFFFFF00AB9A5C /* OrderTicketView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -47,6 +49,8 @@
 		8EAA00032FFFFFFF00AB9A5C /* Trade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Trade.swift; sourceTree = "<group>"; };
 		8EAA00052FFFFFFF00AB9A5C /* TradeHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradeHistoryView.swift; sourceTree = "<group>"; };
 		8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceView.swift; sourceTree = "<group>"; };
+		8EAA00092FFFFFFF00AB9A5C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		8EAA000B2FFFFFFF00AB9A5C /* OrderTicketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderTicketView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -101,6 +105,7 @@
 		8EBF52222FF5AA5100AB9A5C /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				8EAA000B2FFFFFFF00AB9A5C /* OrderTicketView.swift */,
 				8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */,
 				8EAA00052FFFFFFF00AB9A5C /* TradeHistoryView.swift */,
 				8E89B9C82FF9889200DB6297 /* StockDetailView.swift */,
@@ -130,6 +135,7 @@
 		8EBF52262FF5AA5100AB9A5C /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				8EAA00092FFFFFFF00AB9A5C /* Theme.swift */,
 				8EBF52252FF5AA5100AB9A5C /* Constants.swift */,
 			);
 			path = Core;
@@ -213,6 +219,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBF523A2FF9099700AB9A5C /* MarketAPIService.swift in Sources */,
+				8EAA000C2FFFFFFF00AB9A5C /* OrderTicketView.swift in Sources */,
+				8EAA000A2FFFFFFF00AB9A5C /* Theme.swift in Sources */,
 				8EAA00082FFFFFFF00AB9A5C /* PerformanceView.swift in Sources */,
 				8EAA00062FFFFFFF00AB9A5C /* TradeHistoryView.swift in Sources */,
 				8EAA00042FFFFFFF00AB9A5C /* Trade.swift in Sources */,

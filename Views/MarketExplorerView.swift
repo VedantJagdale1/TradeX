@@ -25,25 +25,11 @@ struct MarketExplorerView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = MarketExplorerViewModel()
 
-    /// One alert state for both the order ticket and its failures. Two separate
-    /// `.alert` modifiers can drop one another when the second is presented as the
-    /// first dismisses; a single presentation source can't.
-    enum TradeAlert: Identifiable {
-        case addPosition(stock: NSEStock, priceDetail: String)
-        case failure(message: String)
+    @Query private var settings: [UserSettings]
 
-        var id: String {
-            switch self {
-            case let .addPosition(stock, _): return "add-\(stock.id)"
-            case let .failure(message): return "fail-\(message)"
-            }
-        }
-    }
-
-    @State private var activeAlert: TradeAlert?
-    @State private var enteredQuantityString = "1"
-    @State private var enteredBuyPriceString = ""
-    @State private var enteredThesisString = ""
+    @State private var orderTicket: OrderTicket?
+    @State private var pendingStock: NSEStock?
+    @State private var loadingQuoteFor: UUID?
 
     @State private var indices = MarketIndex.tracked
 
@@ -99,34 +85,9 @@ struct MarketExplorerView: View {
             await loadIndexLevels()
         }
 
-        .alert(alertTitle, isPresented: alertPresentedBinding, presenting: activeAlert) { alert in
-            switch alert {
-            case let .addPosition(stock, _):
-                TextField("Quantity", text: $enteredQuantityString)
-                    .keyboardType(.numberPad)
-
-                TextField("Average Buy Price (or leave blank for Live)", text: $enteredBuyPriceString)
-                    .keyboardType(.decimalPad)
-
-                TextField("Why this trade? (optional)", text: $enteredThesisString)
-
-                Button("Cancel", role: .cancel) {
-                    resetAddPositionInputs()
-                }
-
-                Button("Add Position") {
-                    submitOrder(for: stock)
-                }
-
-            case .failure:
-                Button("OK", role: .cancel) {}
-            }
-        } message: { alert in
-            switch alert {
-            case let .addPosition(_, priceDetail):
-                Text("\(priceDetail)\n\nLeave the price field blank to automatically buy at the live current market price, or enter your custom price manually below.")
-            case let .failure(message):
-                Text(message)
+        .sheet(item: $orderTicket) { ticket in
+            OrderTicketView(ticket: ticket) { quantity, thesis in
+                await placeBuy(quantity: quantity, thesis: thesis)
             }
         }
     }
@@ -135,70 +96,41 @@ struct MarketExplorerView: View {
 
 private extension MarketExplorerView {
 
-    var alertTitle: String {
-        switch activeAlert {
-        case .addPosition: return "Add Position"
-        case .failure: return "Order Not Placed"
-        case nil: return ""
+    /// Fetches a live quote, then opens the ticket for that stock. The symbol and its
+    /// price travel together, so a slow response can't label itself with another row.
+    func openTicket(for stock: NSEStock) {
+        loadingQuoteFor = stock.id
+        Task { @MainActor in
+            let price = try? await MarketAPIService.shared.fetchStockPrice(symbol: stock.symbol)
+            loadingQuoteFor = nil
+            guard let price else { return }
+            pendingStock = stock
+            orderTicket = .buy(
+                symbol: stock.symbol,
+                companyName: stock.name,
+                price: price,
+                availableCash: settings.first?.availableCash ?? 0
+            )
         }
     }
 
-    var alertPresentedBinding: Binding<Bool> {
-        Binding(
-            get: { activeAlert != nil },
-            set: { isPresented in
-                if !isPresented { activeAlert = nil }
-            }
-        )
-    }
-
-    func resetAddPositionInputs() {
-        enteredQuantityString = "1"
-        enteredBuyPriceString = ""
-        enteredThesisString = ""
-    }
-
-    /// Places the order, or reports exactly why it could not be placed. Nothing here
-    /// invents a price or a quantity — a bad input or a failed quote aborts the trade.
-    func submitOrder(for stock: NSEStock) {
-        let quantityText = enteredQuantityString.trimmingCharacters(in: .whitespacesAndNewlines)
-        let priceText = enteredBuyPriceString
-            .replacingOccurrences(of: ",", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let thesisText = enteredThesisString.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        resetAddPositionInputs()
-
-        Task { @MainActor in
-            do {
-                guard let quantity = Int(quantityText), quantity > 0 else {
-                    throw PortfolioError.invalidQuantity
-                }
-
-                let buyPrice: Double
-                if priceText.isEmpty {
-                    guard let livePrice = try? await MarketAPIService.shared.fetchStockPrice(symbol: stock.symbol) else {
-                        throw PortfolioError.priceUnavailable(symbol: stock.symbol)
-                    }
-                    buyPrice = livePrice
-                } else {
-                    guard let enteredPrice = Double(priceText), enteredPrice > 0 else {
-                        throw PortfolioError.invalidPrice
-                    }
-                    buyPrice = enteredPrice
-                }
-
-                try await PortfolioManager.shared.addStock(
-                    symbol: stock.symbol,
-                    companyName: stock.name,
-                    quantity: quantity,
-                    buyPrice: buyPrice,
-                    thesis: thesisText,
-                    modelContext: modelContext
-                )
-            } catch {
-                activeAlert = .failure(message: error.localizedDescription)
-            }
+    /// Returns a message on failure, nil on success — the ticket renders it inline.
+    func placeBuy(quantity: Int, thesis: String) async -> String? {
+        guard let stock = pendingStock, let ticket = orderTicket else {
+            return "Could not price that order. Try again."
+        }
+        do {
+            try await PortfolioManager.shared.addStock(
+                symbol: stock.symbol,
+                companyName: stock.name,
+                quantity: quantity,
+                buyPrice: ticket.price,
+                thesis: thesis,
+                modelContext: modelContext
+            )
+            return nil
+        } catch {
+            return error.localizedDescription
         }
     }
 
@@ -269,24 +201,19 @@ private extension MarketExplorerView {
 
 
             Button {
-                resetAddPositionInputs()
-
-                // The stock and its quote travel together into the alert, so a slow
-                // response for one row can no longer label itself with another row's stock.
-                Task { @MainActor in
-                    let priceDetail: String
-                    if let livePrice = try? await MarketAPIService.shared.fetchStockPrice(symbol: stock.symbol) {
-                        priceDetail = "Live Market Price: \(CurrencyFormatter.rupees(livePrice))"
-                    } else {
-                        priceDetail = "Live price unavailable right now — enter a buy price manually."
-                    }
-                    activeAlert = .addPosition(stock: stock, priceDetail: priceDetail)
-                }
+                openTicket(for: stock)
             } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title3)
-                    .foregroundColor(.green)
-                    .padding(.leading, 8)
+                Group {
+                    if loadingQuoteFor == stock.id {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(Theme.profit)
+                    }
+                }
+                .frame(width: 28, height: 28)
+                .padding(.leading, 8)
             }
             .buttonStyle(.borderless)
         }

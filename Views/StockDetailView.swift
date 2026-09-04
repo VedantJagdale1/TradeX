@@ -14,23 +14,8 @@ struct StockDetailView: View {
 
     @Environment(\.modelContext) private var modelContext
 
-    /// The detail screen already shows a live price, so its ticket only needs a size and
-    /// a reason — no "leave blank for live price" step like the Explore list needs.
-    enum BuyAlert: Identifiable {
-        case ticket
-        case failure(message: String)
-
-        var id: String {
-            switch self {
-            case .ticket: return "ticket"
-            case let .failure(message): return "fail-\(message)"
-            }
-        }
-    }
-
-    @State private var activeAlert: BuyAlert?
-    @State private var enteredQuantityString = "1"
-    @State private var enteredThesisString = ""
+    @Query private var settings: [UserSettings]
+    @State private var orderTicket: OrderTicket?
 
     @State private var chartData: [ChartPoint] = []
     @State private var currentPrice: Double = 0.0
@@ -154,9 +139,12 @@ struct StockDetailView: View {
                 }
 
                 Button {
-                    enteredQuantityString = "1"
-                    enteredThesisString = ""
-                    activeAlert = .ticket
+                    orderTicket = .buy(
+                        symbol: stock.symbol,
+                        companyName: stock.name,
+                        price: currentPrice,
+                        availableCash: settings.first?.availableCash ?? 0
+                    )
                 } label: {
                     Label("Buy \(stock.symbol)", systemImage: "plus.circle.fill")
                         .font(.headline)
@@ -191,27 +179,9 @@ struct StockDetailView: View {
         .task(id: selectedRange) {
             await loadTimelineMetrics()
         }
-        .alert(buyAlertTitle, isPresented: buyAlertBinding, presenting: activeAlert) { alert in
-            switch alert {
-            case .ticket:
-                TextField("Quantity", text: $enteredQuantityString)
-                    .keyboardType(.numberPad)
-
-                TextField("Why this trade? (optional)", text: $enteredThesisString)
-
-                Button("Cancel", role: .cancel) {}
-
-                Button("Buy") { submitOrder() }
-
-            case .failure:
-                Button("OK", role: .cancel) {}
-            }
-        } message: { alert in
-            switch alert {
-            case .ticket:
-                Text("Buying \(stock.symbol) at \(CurrencyFormatter.rupees(currentPrice)) per share.")
-            case let .failure(message):
-                Text(message)
+        .sheet(item: $orderTicket) { ticket in
+            OrderTicketView(ticket: ticket) { quantity, thesis in
+                await placeBuy(quantity: quantity, thesis: thesis)
             }
         }
     }
@@ -219,45 +189,20 @@ struct StockDetailView: View {
 
 private extension StockDetailView {
 
-    var buyAlertTitle: String {
-        switch activeAlert {
-        case .ticket: return "Buy \(stock.symbol)"
-        case .failure: return "Order Not Placed"
-        case nil: return ""
-        }
-    }
-
-    var buyAlertBinding: Binding<Bool> {
-        Binding(
-            get: { activeAlert != nil },
-            set: { isPresented in
-                if !isPresented { activeAlert = nil }
-            }
-        )
-    }
-
-    /// Buys at the price already on screen, so what the user sees is what they pay.
-    func submitOrder() {
-        let quantityText = enteredQuantityString.trimmingCharacters(in: .whitespacesAndNewlines)
-        let thesisText = enteredThesisString.trimmingCharacters(in: .whitespacesAndNewlines)
-        let price = currentPrice
-
-        Task { @MainActor in
-            do {
-                guard let quantity = Int(quantityText), quantity > 0 else {
-                    throw PortfolioError.invalidQuantity
-                }
-                try await PortfolioManager.shared.addStock(
-                    symbol: stock.symbol,
-                    companyName: stock.name,
-                    quantity: quantity,
-                    buyPrice: price,
-                    thesis: thesisText,
-                    modelContext: modelContext
-                )
-            } catch {
-                activeAlert = .failure(message: error.localizedDescription)
-            }
+    /// Returns a message on failure, nil on success — the ticket renders it inline.
+    func placeBuy(quantity: Int, thesis: String) async -> String? {
+        do {
+            try await PortfolioManager.shared.addStock(
+                symbol: stock.symbol,
+                companyName: stock.name,
+                quantity: quantity,
+                buyPrice: currentPrice,
+                thesis: thesis,
+                modelContext: modelContext
+            )
+            return nil
+        } catch {
+            return error.localizedDescription
         }
     }
 

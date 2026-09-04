@@ -15,8 +15,7 @@ struct DashboardView: View {
     @Query private var settings: [UserSettings]
     
     
-    @State private var showingCashAlert = false
-    @State private var enteredCashString = ""
+    @State private var showingCashSheet = false
     
     
     var cashBalance: Double {
@@ -44,17 +43,12 @@ struct DashboardView: View {
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                             
-                            Text("₹\(totalPortfolioValue, specifier: "%.2f")")
-                                .font(.system(size: 32, weight: .bold, design: .rounded))
-                                .id(cashBalance)
+                            MoneyText(amount: totalPortfolioValue, font: Theme.Typography.hero)
                         }
                         Spacer()
                         
                         
-                        Text("\(isProfit ? "+" : "")\(pnlPercentage, specifier: "%.2f")%")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(isProfit ? .green : .red)
+                        PercentText(value: pnlPercentage, font: .headline)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(isProfit ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
@@ -68,16 +62,14 @@ struct DashboardView: View {
                             Text("Stocks Value")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text("₹\(totalStockValue, specifier: "%.2f")")
-                                .font(.headline)
+                            MoneyText(amount: totalStockValue, font: .headline)
                         }
                         
                         Spacer()
                         
                         
                         Button(action: {
-                            enteredCashString = String(format: "%.2f", cashBalance)
-                            showingCashAlert = true
+                            showingCashSheet = true
                         }) {
                             VStack(alignment: .trailing, spacing: 4) {
                                 HStack(spacing: 4) {
@@ -88,17 +80,13 @@ struct DashboardView: View {
                                 }
                                 .foregroundColor(.purple)
                                 
-                                Text("₹\(cashBalance, specifier: "%.2f")")
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
+                                MoneyText(amount: cashBalance, font: .headline)
                             }
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
                 }
-                .padding()
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(12)
+                .card()
                 
                 
                 if !holdings.isEmpty {
@@ -159,13 +147,8 @@ struct DashboardView: View {
                                 Spacer()
                                 
                                 VStack(alignment: .trailing, spacing: 4) {
-                                    Text("₹\(item.currentValue, specifier: "%.2f")")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                    Text("\(item.isProfit ? "+" : "")\(item.pnlPercentage, specifier: "%.2f")%")
-                                        .font(.caption)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(item.isProfit ? .green : .red)
+                                    MoneyText(amount: item.currentValue, font: .subheadline.weight(.semibold))
+                                    PercentText(value: item.pnlPercentage)
                                 }
                             }
                             .padding()
@@ -195,39 +178,176 @@ struct DashboardView: View {
             // Marked after the refresh so the day's value reflects current prices.
             await PortfolioManager.shared.recordDailySnapshot(modelContext: modelContext)
         }
-        .alert("Edit Available Cash", isPresented: showingQuantityAlertBinding) {
-            TextField("Cash Amount", text: $enteredCashString)
-                .keyboardType(.decimalPad)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") {
-                let cleanString = enteredCashString
-                    .replacingOccurrences(of: ",", with: "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                if let value = Double(cleanString), value >= 0, value.isFinite {
-                    // Route through PortfolioManager so this screen can never insert a
-                    // second UserSettings row alongside the one buys and sells use, and
-                    // so the change is recorded as a deposit/withdrawal rather than
-                    // silently inflating net worth.
-                    PortfolioManager.shared.adjustCash(
-                        to: value,
-                        note: "Edited from Dashboard",
-                        modelContext: modelContext
-                    )
-
-                    enteredCashString = ""
-                }
+        .sheet(isPresented: $showingCashSheet) {
+            CashSheet(currentBalance: cashBalance) { newBalance, note in
+                PortfolioManager.shared.adjustCash(
+                    to: newBalance,
+                    note: note,
+                    modelContext: modelContext
+                )
             }
         }
     }
 }
 
 
-private extension DashboardView {
-    var showingQuantityAlertBinding: Binding<Bool> {
-        Binding(
-            get: { showingCashAlert },
-            set: { showingCashAlert = $0 }
-        )
+/// Deposit and withdraw cash.
+///
+/// Framed as a flow of money in or out rather than "set the balance", because that is
+/// what actually gets recorded: every change becomes a `CashAdjustment`, and the
+/// Performance screen divides by deposited capital so a top-up dilutes returns instead
+/// of flattering them.
+struct CashSheet: View {
+    let currentBalance: Double
+    let onSubmit: (Double, String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var isDeposit = true
+    @State private var amountString = ""
+    @FocusState private var amountFocused: Bool
+
+    private static let quickAmounts: [Double] = [10_000, 50_000, 100_000]
+
+    private var amount: Double {
+        Double(amountString.replacingOccurrences(of: ",", with: "")
+            .trimmingCharacters(in: .whitespaces)) ?? 0
+    }
+
+    private var resultingBalance: Double {
+        isDeposit ? currentBalance + amount : currentBalance - amount
+    }
+
+    /// Only an actual over-withdrawal is an error. An empty field is merely incomplete,
+    /// so the resulting balance shouldn't be tinted red just because nothing is typed.
+    private var isOverdrawn: Bool {
+        !isDeposit && amount > currentBalance
+    }
+
+    private var blockingReason: String? {
+        guard amount > 0 else { return "Enter an amount." }
+        if !isDeposit, amount > currentBalance {
+            return "You only have \(CurrencyFormatter.rupees(currentBalance)) in cash."
+        }
+        return nil
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Available cash")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        MoneyText(amount: currentBalance, font: Theme.Typography.hero)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .card()
+
+                    Picker("Direction", selection: $isDeposit) {
+                        Text("Deposit").tag(true)
+                        Text("Withdraw").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Amount")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        TextField("0.00", text: $amountString)
+                            .keyboardType(.decimalPad)
+                            .focused($amountFocused)
+                            .font(Theme.Typography.figure)
+
+                        HStack(spacing: 8) {
+                            ForEach(Self.quickAmounts, id: \.self) { value in
+                                Button {
+                                    amountString = String(format: "%.0f", value)
+                                } label: {
+                                    Text("\(isDeposit ? "+" : "")\(CurrencyFormatter.rupees(value).replacingOccurrences(of: ".00", with: ""))")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: Theme.Radius.pill, style: .continuous)
+                                                .fill(Theme.accent.opacity(0.15))
+                                        )
+                                        .foregroundStyle(Theme.accent)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .card()
+
+                    HStack {
+                        Text("New balance")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        MoneyText(
+                            amount: max(resultingBalance, 0),
+                            font: .headline,
+                            color: isOverdrawn ? Theme.loss : .primary
+                        )
+                    }
+                    .card()
+
+                    if let blockingReason {
+                        Text(blockingReason)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Text("Recorded as a cash adjustment. Returns are measured against deposited capital, so adding cash never counts as a gain.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding()
+            }
+            .background(Theme.background)
+            .navigationTitle(isDeposit ? "Deposit Cash" : "Withdraw Cash")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .keyboard) {
+                    HStack {
+                        Spacer()
+                        Button("Done") { amountFocused = false }.fontWeight(.semibold)
+                    }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    onSubmit(resultingBalance, isDeposit ? "Deposit" : "Withdrawal")
+                    dismiss()
+                } label: {
+                    Text(isDeposit ? "Add Cash" : "Withdraw")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                                .fill(blockingReason == nil ? Theme.accent : Color.secondary.opacity(0.3))
+                        )
+                        .foregroundStyle(blockingReason == nil ? .white : .secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(blockingReason != nil)
+                .padding()
+                .background(.bar)
+                .animation(Theme.Motion.layout, value: blockingReason == nil)
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 }
