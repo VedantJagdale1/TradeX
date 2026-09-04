@@ -12,9 +12,13 @@ class GroqService {
     private init() {}
 
     
-    /// Injected at build time from Secrets.xcconfig (GROQ_API_KEY) via the
-    /// INFOPLIST_KEY_GroqAPIKey build setting. Never hardcode the key here —
-    /// anything in source ends up in the shipped binary and in git history.
+    /// Injected at build time from Secrets.xcconfig (GROQ_API_KEY), expanded into
+    /// TradeX-Info.plist as `GroqAPIKey`. Never hardcode the key here — anything in
+    /// source ends up in the shipped binary and in git history.
+    ///
+    /// Note the plist is a real file referenced by INFOPLIST_FILE rather than an
+    /// `INFOPLIST_KEY_GroqAPIKey` build setting: that prefix only honours keys Xcode
+    /// recognises, and silently drops custom ones from the generated Info.plist.
     private var apiKey: String {
         let value = Bundle.main.object(forInfoDictionaryKey: "GroqAPIKey") as? String
         return value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
