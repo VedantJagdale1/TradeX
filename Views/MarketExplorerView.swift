@@ -134,7 +134,7 @@ private extension MarketExplorerView {
                 symbol: stock.symbol,
                 companyName: stock.name,
                 price: price,
-                availableCash: settings.first?.availableCash ?? 0
+                availableCash: PortfolioManager.shared.freeCash(in: modelContext)
             )
         }
     }
@@ -145,19 +145,21 @@ private extension MarketExplorerView {
             return "Could not price that order. Try again."
         }
 
-        // A limit order rests instead of executing; nothing is charged until it fills.
         if let limitPrice = request.limitPrice {
-            LimitOrderService.place(
+            let failure = await LimitOrderService.submit(
                 symbol: stock.symbol,
                 companyName: stock.name,
                 isBuy: true,
                 quantity: request.quantity,
                 limitPrice: limitPrice,
+                marketPrice: ticket.price,
                 thesis: request.thesis,
+                timeInForce: request.timeInForce,
+                holding: nil,
                 modelContext: modelContext
             )
-            await PriceAlertService.requestAuthorization()
-            return nil
+            if failure == nil { await PriceAlertService.requestAuthorization() }
+            return failure
         }
 
         do {

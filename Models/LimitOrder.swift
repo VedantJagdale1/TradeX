@@ -26,6 +26,11 @@ final class LimitOrder {
     var statusRaw: String
 
     var createdAt: Date
+
+    /// When the order stops being live. Nil is good-till-cancelled; a day order is set
+    /// to the session close, matching NSE's default.
+    var expiresAt: Date?
+
     var filledAt: Date?
     var filledPrice: Double?
     var failureReason: String?
@@ -38,6 +43,7 @@ final class LimitOrder {
         quantity: Int,
         limitPrice: Double,
         thesis: String = "",
+        expiresAt: Date? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -48,11 +54,25 @@ final class LimitOrder {
         self.limitPrice = limitPrice
         self.thesis = thesis
         self.statusRaw = State.open.rawValue
+        self.expiresAt = expiresAt
         self.createdAt = createdAt
     }
 
     enum State: String {
-        case open, filled, cancelled, failed
+        case open, filled, cancelled, failed, expired
+    }
+
+    enum TimeInForce: String, CaseIterable, Identifiable {
+        case day, goodTillCancelled
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .day: return "Day"
+            case .goodTillCancelled: return "GTC"
+            }
+        }
     }
 
     var state: State {
@@ -67,8 +87,19 @@ final class LimitOrder {
         isBuy ? price <= limitPrice : price >= limitPrice
     }
 
+    func hasExpired(at date: Date = Date()) -> Bool {
+        guard let expiresAt else { return false }
+        return date >= expiresAt
+    }
+
+    /// Cash a resting buy ties up, or zero for a sell.
+    var reservedCash: Double {
+        isBuy ? Double(quantity) * limitPrice : 0
+    }
+
     var conditionDescription: String {
-        "\(isBuy ? "Buy" : "Sell") \(quantity) at \(CurrencyFormatter.rupees(limitPrice)) or better"
+        let base = "\(isBuy ? "Buy" : "Sell") \(quantity) at \(CurrencyFormatter.rupees(limitPrice)) or better"
+        return expiresAt == nil ? base : base + " · today"
     }
 }
 
@@ -76,15 +107,47 @@ final class LimitOrder {
 @MainActor
 enum LimitOrderService {
 
-    static func place(
+    /// Places a limit order, or executes it immediately if it is already marketable.
+    ///
+    /// A marketable limit — a buy priced at or above the market, a sell at or below — is
+    /// a real instrument, not a mistake: it executes now but caps the worst price you
+    /// can get, which a market order does not. Returns a message on failure.
+    @discardableResult
+    static func submit(
         symbol: String,
         companyName: String,
         isBuy: Bool,
         quantity: Int,
         limitPrice: Double,
+        marketPrice: Double,
         thesis: String,
+        timeInForce: LimitOrder.TimeInForce,
+        holding: PortfolioHolding?,
         modelContext: ModelContext
-    ) {
+    ) async -> String? {
+
+        let isMarketable = isBuy ? limitPrice >= marketPrice : limitPrice <= marketPrice
+
+        if isMarketable {
+            guard MarketSession.isOpen() else {
+                return "The market is closed. This order would execute immediately, so it can only be placed during trading hours (9:15am–3:30pm IST, Mon–Fri)."
+            }
+
+            // Fill at the market, capped by the limit — the price improvement a real
+            // marketable order would receive.
+            let fillPrice = isBuy ? min(marketPrice, limitPrice) : max(marketPrice, limitPrice)
+            return await executeImmediately(
+                symbol: symbol,
+                companyName: companyName,
+                isBuy: isBuy,
+                quantity: quantity,
+                price: fillPrice,
+                thesis: thesis,
+                holding: holding,
+                modelContext: modelContext
+            )
+        }
+
         modelContext.insert(
             LimitOrder(
                 symbol: symbol,
@@ -92,10 +155,50 @@ enum LimitOrderService {
                 isBuy: isBuy,
                 quantity: quantity,
                 limitPrice: limitPrice,
-                thesis: thesis
+                thesis: thesis,
+                expiresAt: timeInForce == .day ? MarketSession.nextClose() : nil
             )
         )
         try? modelContext.save()
+        return nil
+    }
+
+    private static func executeImmediately(
+        symbol: String,
+        companyName: String,
+        isBuy: Bool,
+        quantity: Int,
+        price: Double,
+        thesis: String,
+        holding: PortfolioHolding?,
+        modelContext: ModelContext
+    ) async -> String? {
+        do {
+            if isBuy {
+                try await PortfolioManager.shared.addStock(
+                    symbol: symbol,
+                    companyName: companyName,
+                    quantity: quantity,
+                    buyPrice: price,
+                    thesis: thesis,
+                    modelContext: modelContext
+                )
+            } else {
+                guard let holding else {
+                    return "You no longer hold \(symbol)."
+                }
+                holding.currentPrice = price
+                try PortfolioManager.shared.sellStock(
+                    holding,
+                    quantity: quantity,
+                    thesis: thesis,
+                    modelContext: modelContext
+                )
+            }
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
     }
 
     static func cancel(_ order: LimitOrder, modelContext: ModelContext) {
@@ -106,9 +209,22 @@ enum LimitOrderService {
 
     /// Prices every open order and executes the ones the market has reached.
     static func checkAll(modelContext: ModelContext) async {
-        let open = ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
+        var open = ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
             .filter(\.isOpen)
         guard !open.isEmpty else { return }
+
+        // Retire day orders that outlived their session, whether or not the market is
+        // open now — an expired order must not linger and fill days later.
+        let expired = open.filter { $0.hasExpired() }
+        if !expired.isEmpty {
+            for order in expired { order.state = .expired }
+            try? modelContext.save()
+            open.removeAll { $0.hasExpired() }
+        }
+
+        // Fills are transactions and only happen inside a session. Yahoo serves the last
+        // close outside hours, which would otherwise execute orders overnight.
+        guard MarketSession.isOpen(), !open.isEmpty else { return }
 
         let symbols = Set(open.map(\.symbol))
         let quotes = await withTaskGroup(of: (String, Double?).self) { group in

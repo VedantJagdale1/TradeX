@@ -191,7 +191,7 @@ struct StockDetailView: View {
                         symbol: stock.symbol,
                         companyName: stock.name,
                         price: currentPrice,
-                        availableCash: settings.first?.availableCash ?? 0
+                        availableCash: PortfolioManager.shared.freeCash(in: modelContext)
                     )
                 } label: {
                     Label("Buy \(stock.symbol)", systemImage: "plus.circle.fill")
@@ -289,19 +289,21 @@ private extension StockDetailView {
 
     /// Returns a message on failure, nil on success — the ticket renders it inline.
     func placeBuy(_ request: OrderRequest) async -> String? {
-        // A limit order rests instead of executing; nothing is charged until it fills.
         if let limitPrice = request.limitPrice {
-            LimitOrderService.place(
+            let failure = await LimitOrderService.submit(
                 symbol: stock.symbol,
                 companyName: stock.name,
                 isBuy: true,
                 quantity: request.quantity,
                 limitPrice: limitPrice,
+                marketPrice: currentPrice,
                 thesis: request.thesis,
+                timeInForce: request.timeInForce,
+                holding: nil,
                 modelContext: modelContext
             )
-            await PriceAlertService.requestAuthorization()
-            return nil
+            if failure == nil { await PriceAlertService.requestAuthorization() }
+            return failure
         }
 
         do {

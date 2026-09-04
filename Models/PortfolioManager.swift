@@ -207,6 +207,36 @@ final class PortfolioManager {
         save(modelContext)
     }
 
+    // MARK: - Buying power
+
+    /// Cash committed to resting buy orders.
+    ///
+    /// Reservations gate *placement* and what the ticket displays; execution still
+    /// checks the real balance. That mirrors a broker blocking margin when an order is
+    /// placed and debiting it only when the order fills.
+    func reservedCash(in modelContext: ModelContext) -> Double {
+        ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
+            .filter(\.isOpen)
+            .reduce(0) { $0 + $1.reservedCash }
+    }
+
+    /// Cash that can still be committed, after resting buys.
+    func freeCash(in modelContext: ModelContext) -> Double {
+        max(0, settings(in: modelContext).availableCash - reservedCash(in: modelContext))
+    }
+
+    /// Shares of one symbol committed to resting sell orders.
+    func reservedShares(symbol: String, in modelContext: ModelContext) -> Int {
+        ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
+            .filter { $0.isOpen && !$0.isBuy && $0.symbol == symbol }
+            .reduce(0) { $0 + $1.quantity }
+    }
+
+    /// Shares of a holding not already promised to a resting sell.
+    func freeShares(for holding: PortfolioHolding, in modelContext: ModelContext) -> Int {
+        max(0, holding.quantity - reservedShares(symbol: holding.symbol, in: modelContext))
+    }
+
     // MARK: - Performance history
 
     /// Yahoo's ticker for the NIFTY 50, used as the benchmark.

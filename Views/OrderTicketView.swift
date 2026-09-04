@@ -27,13 +27,14 @@ struct OrderTicket: Identifiable {
         OrderTicket(side: .buy, symbol: symbol, companyName: companyName, price: price, availableCash: availableCash)
     }
 
-    static func sell(holding: PortfolioHolding) -> OrderTicket {
+    /// `freeQuantity` excludes shares already committed to resting sell orders.
+    static func sell(holding: PortfolioHolding, freeQuantity: Int? = nil) -> OrderTicket {
         OrderTicket(
             side: .sell,
             symbol: holding.symbol,
             companyName: holding.companyName,
             price: holding.currentPrice,
-            heldQuantity: holding.quantity,
+            heldQuantity: freeQuantity ?? holding.quantity,
             averageCost: holding.avgBuyPrice
         )
     }
@@ -44,6 +45,7 @@ struct OrderRequest {
     let quantity: Int
     let thesis: String
     let limitPrice: Double?
+    var timeInForce: LimitOrder.TimeInForce = .day
 
     var isLimit: Bool { limitPrice != nil }
 }
@@ -63,6 +65,7 @@ struct OrderTicketView: View {
     @State private var quantityString = "1"
     @State private var isLimitOrder = false
     @State private var limitPriceString = ""
+    @State private var timeInForce: LimitOrder.TimeInForce = .day
     @State private var thesis = ""
     @State private var isSubmitting = false
     @State private var inlineError: String?
@@ -99,13 +102,9 @@ struct OrderTicketView: View {
         if isLimitOrder {
             guard limitPrice > 0 else { return "Enter a limit price." }
 
-            // Market convention: a buy limit rests below the current price, a sell limit
-            // above it. On the wrong side it would fill instantly, which is a market order.
-            if isBuy, limitPrice >= ticket.price {
-                return "A buy limit must be below \(CurrencyFormatter.rupees(ticket.price)) — otherwise it fills right now."
-            }
-            if !isBuy, limitPrice <= ticket.price {
-                return "A sell limit must be above \(CurrencyFormatter.rupees(ticket.price)) — otherwise it fills right now."
+            // A marketable limit executes now, so it can only be placed in a session.
+            if isMarketableLimit, !MarketSession.isOpen() {
+                return "That price executes immediately, so it can only be placed while the market is open (9:15am–3:30pm IST, Mon–Fri)."
             }
         }
 
@@ -119,6 +118,18 @@ struct OrderTicketView: View {
         }
 
         return nil
+    }
+
+    /// A buy at or above the market, or a sell at or below it, crosses the spread and
+    /// executes now rather than resting.
+    private var isMarketableLimit: Bool {
+        guard isLimitOrder, limitPrice > 0 else { return false }
+        return isBuy ? limitPrice >= ticket.price : limitPrice <= ticket.price
+    }
+
+    /// What a marketable order would actually pay: the market, capped by the limit.
+    private var marketableFillPrice: Double {
+        isBuy ? min(ticket.price, limitPrice) : max(ticket.price, limitPrice)
     }
 
     private var canSubmit: Bool { blockingReason == nil && !isSubmitting }
@@ -209,6 +220,29 @@ private extension OrderTicketView {
                 let distance = ((limitPrice - ticket.price) / ticket.price) * 100
                 Text("\(Theme.sign(distance))\(distance, specifier: "%.2f")% from the current price")
                     .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if isMarketableLimit {
+                Label(
+                    "Executes now at \(CurrencyFormatter.rupees(marketableFillPrice)) — your limit caps the price but won't make it wait.",
+                    systemImage: "bolt.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(Theme.caution)
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Picker("Time in force", selection: $timeInForce) {
+                    ForEach(LimitOrder.TimeInForce.allCases) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(timeInForce == .day
+                     ? "Expires at today's close, like an NSE day order."
+                     : "Rests until it fills or you cancel it.")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
@@ -367,7 +401,7 @@ private extension OrderTicketView {
                 if isSubmitting {
                     ProgressView().tint(.white)
                 } else {
-                    Text(isLimitOrder
+                    Text(isLimitOrder && !isMarketableLimit
                          ? "Place \(isBuy ? "Buy" : "Sell") Limit Order"
                          : "\(isBuy ? "Buy" : "Sell") \(max(quantity, 0)) \(quantity == 1 ? "share" : "shares")")
                         .fontWeight(.semibold)
@@ -401,7 +435,8 @@ private extension OrderTicketView {
                 OrderRequest(
                     quantity: size,
                     thesis: reason,
-                    limitPrice: isLimitOrder ? limitPrice : nil
+                    limitPrice: isLimitOrder ? limitPrice : nil,
+                    timeInForce: timeInForce
                 )
             )
             isSubmitting = false

@@ -82,7 +82,13 @@ struct PortfolioView: View {
                             // delete misrepresented what it does.
                             Button(role: .destructive) {
                                 pendingHolding = holding
-                                orderTicket = .sell(holding: holding)
+                                orderTicket = .sell(
+                                    holding: holding,
+                                    freeQuantity: PortfolioManager.shared.freeShares(
+                                        for: holding,
+                                        in: modelContext
+                                    )
+                                )
                             } label: {
                                 Label("Sell", systemImage: "indianrupeesign.circle")
                             }
@@ -119,20 +125,21 @@ private extension PortfolioView {
     func placeSell(_ request: OrderRequest) async -> String? {
         guard let holding = pendingHolding else { return "That position is no longer open." }
 
-        // A limit order rests instead of executing; the shares stay in the position
-        // until it fills.
         if let limitPrice = request.limitPrice {
-            LimitOrderService.place(
+            let failure = await LimitOrderService.submit(
                 symbol: holding.symbol,
                 companyName: holding.companyName,
                 isBuy: false,
                 quantity: request.quantity,
                 limitPrice: limitPrice,
+                marketPrice: holding.currentPrice,
                 thesis: request.thesis,
+                timeInForce: request.timeInForce,
+                holding: holding,
                 modelContext: modelContext
             )
-            await PriceAlertService.requestAuthorization()
-            return nil
+            if failure == nil { await PriceAlertService.requestAuthorization() }
+            return failure
         }
 
         do {

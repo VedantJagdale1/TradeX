@@ -180,3 +180,58 @@ struct ChartSeries {
         latestPrice ?? points.last?.price
     }
 }
+
+
+/// NSE trading hours.
+///
+/// Fills must only happen inside a session. Yahoo returns the last close outside hours,
+/// so without this an order placed on Friday would "execute" against a stale price the
+/// next time the app is opened at 2am on a Sunday.
+enum MarketSession {
+    static let exchangeTimeZone = TimeZone(identifier: "Asia/Kolkata") ?? .current
+
+    private static let openMinutes = 9 * 60 + 15   // 09:15 IST
+    private static let closeMinutes = 15 * 60 + 30 // 15:30 IST
+
+    static func isOpen(at date: Date = Date()) -> Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = exchangeTimeZone
+
+        let parts = calendar.dateComponents([.weekday, .hour, .minute], from: date)
+
+        // Sunday is 1, so Monday...Friday is 2...6.
+        guard let weekday = parts.weekday, (2...6).contains(weekday),
+              let hour = parts.hour, let minute = parts.minute
+        else { return false }
+
+        let minutesIntoDay = hour * 60 + minute
+        return minutesIntoDay >= openMinutes && minutesIntoDay <= closeMinutes
+    }
+
+    /// The next close after `date` — when a day order stops being live.
+    ///
+    /// Exchange holidays are not modelled, so a day order placed before a holiday
+    /// expires at that day's nominal close rather than the next real session's.
+    static func nextClose(after date: Date = Date()) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = exchangeTimeZone
+
+        var candidate = calendar.date(
+            bySettingHour: closeMinutes / 60,
+            minute: closeMinutes % 60,
+            second: 0,
+            of: date
+        ) ?? date
+
+        if candidate <= date {
+            candidate = calendar.date(byAdding: .day, value: 1, to: candidate) ?? candidate
+        }
+
+        // Roll past the weekend.
+        while !(2...6).contains(calendar.component(.weekday, from: candidate)) {
+            candidate = calendar.date(byAdding: .day, value: 1, to: candidate) ?? candidate
+        }
+
+        return candidate
+    }
+}
