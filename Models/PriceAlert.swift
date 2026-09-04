@@ -85,14 +85,47 @@ enum PriceAlertService {
     /// Prices every armed alert and delivers a notification for any that have been met.
     ///
     /// Safe to call from the foreground or a background refresh; symbols are fetched
-    /// concurrently and each alert fires at most once.
-    static func checkAll(modelContext: ModelContext) async {
+    /// concurrently and each alert fires at most once. The clock and quote source are
+    /// injectable so this can be exercised without the network.
+    ///
+    /// Unlike an order fill, this is deliberately *not* gated on market hours: an alert
+    /// is information, and "it reached your price" stays true after the close.
+    /// - Returns: the alerts that fired.
+    @discardableResult
+    static func checkAll(
+        modelContext: ModelContext,
+        now: Date = Date(),
+        quoteSource: ((Set<String>) async -> [String: Double])? = nil
+    ) async -> [PriceAlert] {
         let armed = ((try? modelContext.fetch(FetchDescriptor<PriceAlert>())) ?? [])
             .filter(\.isArmed)
-        guard !armed.isEmpty else { return }
+        guard !armed.isEmpty else { return [] }
 
         let symbols = Set(armed.map(\.symbol))
-        let quotes = await withTaskGroup(of: (String, Double?).self) { group in
+        let quotes = await (quoteSource ?? liveQuotes)(symbols)
+
+        var fired: [PriceAlert] = []
+        for alert in armed {
+            guard let price = quotes[alert.symbol], alert.hasMet(price: price) else { continue }
+
+            alert.triggeredAt = now
+            // The price actually seen, not the target — unlike a limit order, which
+            // fills at its limit. What the alert reports is what the market did.
+            alert.triggeredPrice = price
+            fired.append(alert)
+        }
+
+        guard !fired.isEmpty else { return [] }
+
+        try? modelContext.save()
+        for alert in fired {
+            await deliver(alert: alert, price: alert.triggeredPrice ?? alert.targetPrice)
+        }
+        return fired
+    }
+
+    private static func liveQuotes(_ symbols: Set<String>) async -> [String: Double] {
+        await withTaskGroup(of: (String, Double?).self) { group in
             for symbol in symbols {
                 group.addTask {
                     (symbol, try? await MarketAPIService.shared.fetchStockPrice(symbol: symbol))
@@ -103,20 +136,6 @@ enum PriceAlertService {
                 if let price { collected[symbol] = price }
             }
             return collected
-        }
-
-        var didTrigger = false
-        for alert in armed {
-            guard let price = quotes[alert.symbol], alert.hasMet(price: price) else { continue }
-
-            alert.triggeredAt = Date()
-            alert.triggeredPrice = price
-            didTrigger = true
-            await deliver(alert: alert, price: price)
-        }
-
-        if didTrigger {
-            try? modelContext.save()
         }
     }
 
