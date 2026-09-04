@@ -7,5 +7,16 @@
 	     screen, orientations) on top of this partial plist. -->
 	<key>GroqAPIKey</key>
 	<string>$(GROQ_API_KEY)</string>
+
+	<!-- Background price checks for alerts. Both keys are required: the mode grants
+	     the capability, the identifier list authorises this specific task id. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>vedant.TradeX.priceCheck</string>
+	</array>
 </dict>
 </plist>

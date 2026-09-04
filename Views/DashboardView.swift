@@ -163,6 +163,14 @@ struct DashboardView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
+                    AlertsView()
+                } label: {
+                    Label("Price Alerts", systemImage: "bell")
+                }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
                     PerformanceView()
                 } label: {
                     Label("Performance", systemImage: "chart.xyaxis.line")
@@ -173,6 +181,7 @@ struct DashboardView: View {
             await PortfolioManager.shared.refreshPrices(modelContext: modelContext)
             // Marked after the refresh so the day's value reflects current prices.
             await PortfolioManager.shared.recordDailySnapshot(modelContext: modelContext)
+            await PriceAlertService.checkAll(modelContext: modelContext)
         }
         .sheet(isPresented: $showingCashSheet) {
             CashSheet(currentBalance: cashBalance) { newBalance, note in

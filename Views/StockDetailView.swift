@@ -19,6 +19,7 @@ struct StockDetailView: View {
 
     /// The point under the user's finger while scrubbing, or nil when not scrubbing.
     @State private var scrubbed: ChartPoint?
+    @State private var showingNewAlert = false
 
     @Query private var watchlist: [WatchlistItem]
 
@@ -224,6 +225,16 @@ struct StockDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    showingNewAlert = true
+                } label: {
+                    Image(systemName: "bell")
+                }
+                .accessibilityLabel("Set a price alert")
+                .disabled(currentPrice <= 0)
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
                     Watchlist.toggle(
                         symbol: stock.symbol,
                         companyName: stock.name,
@@ -242,6 +253,13 @@ struct StockDetailView: View {
         .sensoryFeedback(.selection, trigger: scrubbed?.id)
         .task(id: selectedRange) {
             await loadTimelineMetrics()
+        }
+        .sheet(isPresented: $showingNewAlert) {
+            NewAlertSheet(
+                symbol: stock.symbol,
+                companyName: stock.name,
+                currentPrice: currentPrice
+            )
         }
         .sheet(item: $orderTicket) { ticket in
             OrderTicketView(ticket: ticket) { quantity, thesis in
