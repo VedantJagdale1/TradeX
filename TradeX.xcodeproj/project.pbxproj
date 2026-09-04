@@ -29,6 +29,7 @@
 		8EAA000E2FFFFFFF00AB9A5C /* WatchlistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA000D2FFFFFFF00AB9A5C /* WatchlistItem.swift */; };
 		8EAA00102FFFFFFF00AB9A5C /* PriceAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA000F2FFFFFFF00AB9A5C /* PriceAlert.swift */; };
 		8EAA00122FFFFFFF00AB9A5C /* AlertsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00112FFFFFFF00AB9A5C /* AlertsView.swift */; };
+		8EAA00142FFFFFFF00AB9A5C /* LimitOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00132FFFFFFF00AB9A5C /* LimitOrder.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -57,6 +58,7 @@
 		8EAA000D2FFFFFFF00AB9A5C /* WatchlistItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistItem.swift; sourceTree = "<group>"; };
 		8EAA000F2FFFFFFF00AB9A5C /* PriceAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceAlert.swift; sourceTree = "<group>"; };
 		8EAA00112FFFFFFF00AB9A5C /* AlertsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertsView.swift; sourceTree = "<group>"; };
+		8EAA00132FFFFFFF00AB9A5C /* LimitOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitOrder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -128,6 +130,7 @@
 		8EBF52242FF5AA5100AB9A5C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				8EAA00132FFFFFFF00AB9A5C /* LimitOrder.swift */,
 				8EAA000F2FFFFFFF00AB9A5C /* PriceAlert.swift */,
 				8EAA000D2FFFFFFF00AB9A5C /* WatchlistItem.swift */,
 				8EAA00032FFFFFFF00AB9A5C /* Trade.swift */,
@@ -228,6 +231,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBF523A2FF9099700AB9A5C /* MarketAPIService.swift in Sources */,
+				8EAA00142FFFFFFF00AB9A5C /* LimitOrder.swift in Sources */,
 				8EAA00122FFFFFFF00AB9A5C /* AlertsView.swift in Sources */,
 				8EAA00102FFFFFFF00AB9A5C /* PriceAlert.swift in Sources */,
 				8EAA000E2FFFFFFF00AB9A5C /* WatchlistItem.swift in Sources */,

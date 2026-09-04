@@ -15,6 +15,9 @@ struct PortfolioView: View {
 
     /// The sell ticket presents as a sheet; failures render inside it, so there is no
     /// second alert racing the first one's dismissal.
+    @Query(sort: \LimitOrder.createdAt, order: .reverse) private var limitOrders: [LimitOrder]
+    private var openOrders: [LimitOrder] { limitOrders.filter(\.isOpen) }
+
     @State private var orderTicket: OrderTicket?
     @State private var pendingHolding: PortfolioHolding?
 
@@ -34,6 +37,22 @@ struct PortfolioView: View {
                     .listRowBackground(Color.clear)
             }
 
+
+            if !openOrders.isEmpty {
+                Section("Pending Orders (\(openOrders.count))") {
+                    ForEach(openOrders) { order in
+                        pendingOrderRow(for: order)
+                            .listRowBackground(Theme.surface)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    LimitOrderService.cancel(order, modelContext: modelContext)
+                                } label: {
+                                    Label("Cancel", systemImage: "xmark.circle")
+                                }
+                            }
+                    }
+                }
+            }
 
             Section(header: HStack {
                 Text("Open Positions (\(holdings.count))")
@@ -83,8 +102,8 @@ struct PortfolioView: View {
             }
         }
         .sheet(item: $orderTicket) { ticket in
-            OrderTicketView(ticket: ticket) { quantity, thesis in
-                await placeSell(quantity: quantity, thesis: thesis)
+            OrderTicketView(ticket: ticket) { request in
+                await placeSell(request)
             }
         }
         .task {
@@ -97,13 +116,30 @@ struct PortfolioView: View {
 private extension PortfolioView {
 
     /// Returns a message on failure, nil on success — the ticket renders it inline.
-    func placeSell(quantity: Int, thesis: String) async -> String? {
+    func placeSell(_ request: OrderRequest) async -> String? {
         guard let holding = pendingHolding else { return "That position is no longer open." }
+
+        // A limit order rests instead of executing; the shares stay in the position
+        // until it fills.
+        if let limitPrice = request.limitPrice {
+            LimitOrderService.place(
+                symbol: holding.symbol,
+                companyName: holding.companyName,
+                isBuy: false,
+                quantity: request.quantity,
+                limitPrice: limitPrice,
+                thesis: request.thesis,
+                modelContext: modelContext
+            )
+            await PriceAlertService.requestAuthorization()
+            return nil
+        }
+
         do {
             try PortfolioManager.shared.sellStock(
                 holding,
-                quantity: quantity,
-                thesis: thesis,
+                quantity: request.quantity,
+                thesis: request.thesis,
                 modelContext: modelContext
             )
             return nil
@@ -112,12 +148,43 @@ private extension PortfolioView {
         }
     }
 
+    func pendingOrderRow(for order: LimitOrder) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: order.isBuy ? "arrow.down.circle" : "arrow.up.circle")
+                .font(.title3)
+                .foregroundStyle(order.isBuy ? Theme.buySide : Theme.sellSide)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(order.symbol)
+                    .font(.headline)
+                Text(order.conditionDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Text("Resting")
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous)
+                        .fill(Color.secondary.opacity(0.15))
+                )
+        }
+        .padding(.vertical, 4)
+    }
+
     func updateLivePrices(force: Bool) async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
 
         await PortfolioManager.shared.refreshPrices(modelContext: modelContext, force: force)
+        await LimitOrderService.checkAll(modelContext: modelContext)
     }
 
 

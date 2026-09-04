@@ -182,6 +182,7 @@ struct DashboardView: View {
             // Marked after the refresh so the day's value reflects current prices.
             await PortfolioManager.shared.recordDailySnapshot(modelContext: modelContext)
             await PriceAlertService.checkAll(modelContext: modelContext)
+            await LimitOrderService.checkAll(modelContext: modelContext)
         }
         .sheet(isPresented: $showingCashSheet) {
             CashSheet(currentBalance: cashBalance) { newBalance, note in

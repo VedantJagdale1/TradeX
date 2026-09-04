@@ -26,7 +26,8 @@ struct TradeXApp: App {
                 CashAdjustment.self,
                 PortfolioSnapshot.self,
                 WatchlistItem.self,
-                PriceAlert.self
+                PriceAlert.self,
+                LimitOrder.self
             )
         } catch {
             fatalError("Could not open the TradeX data store: \(error)")
@@ -39,7 +40,9 @@ struct TradeXApp: App {
         }
         .modelContainer(container)
         .backgroundTask(.appRefresh(PriceAlertService.backgroundTaskID)) {
-            await PriceAlertService.checkAll(modelContext: ModelContext(container))
+            let context = ModelContext(container)
+            await PriceAlertService.checkAll(modelContext: context)
+            await LimitOrderService.checkAll(modelContext: context)
             // Re-arm: a refresh task only ever runs once per submission.
             await scheduleAlertCheck()
         }

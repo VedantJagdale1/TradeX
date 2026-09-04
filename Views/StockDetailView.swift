@@ -262,8 +262,8 @@ struct StockDetailView: View {
             )
         }
         .sheet(item: $orderTicket) { ticket in
-            OrderTicketView(ticket: ticket) { quantity, thesis in
-                await placeBuy(quantity: quantity, thesis: thesis)
+            OrderTicketView(ticket: ticket) { request in
+                await placeBuy(request)
             }
         }
     }
@@ -288,14 +288,29 @@ private extension StockDetailView {
     }
 
     /// Returns a message on failure, nil on success — the ticket renders it inline.
-    func placeBuy(quantity: Int, thesis: String) async -> String? {
+    func placeBuy(_ request: OrderRequest) async -> String? {
+        // A limit order rests instead of executing; nothing is charged until it fills.
+        if let limitPrice = request.limitPrice {
+            LimitOrderService.place(
+                symbol: stock.symbol,
+                companyName: stock.name,
+                isBuy: true,
+                quantity: request.quantity,
+                limitPrice: limitPrice,
+                thesis: request.thesis,
+                modelContext: modelContext
+            )
+            await PriceAlertService.requestAuthorization()
+            return nil
+        }
+
         do {
             try await PortfolioManager.shared.addStock(
                 symbol: stock.symbol,
                 companyName: stock.name,
-                quantity: quantity,
+                quantity: request.quantity,
                 buyPrice: currentPrice,
-                thesis: thesis,
+                thesis: request.thesis,
                 modelContext: modelContext
             )
             return nil

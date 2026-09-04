@@ -39,6 +39,15 @@ struct OrderTicket: Identifiable {
     }
 }
 
+/// What the ticket produces. A nil `limitPrice` means execute now at the market.
+struct OrderRequest {
+    let quantity: Int
+    let thesis: String
+    let limitPrice: Double?
+
+    var isLimit: Bool { limitPrice != nil }
+}
+
 /// The order ticket.
 ///
 /// Replaces the alert-based flow, which crammed three fields into a system dialog and
@@ -47,11 +56,13 @@ struct OrderTicket: Identifiable {
 /// as a second alert fighting the first one's dismissal.
 struct OrderTicketView: View {
     let ticket: OrderTicket
-    let onSubmit: (Int, String) async -> String?
+    let onSubmit: (OrderRequest) async -> String?
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var quantityString = "1"
+    @State private var isLimitOrder = false
+    @State private var limitPriceString = ""
     @State private var thesis = ""
     @State private var isSubmitting = false
     @State private var inlineError: String?
@@ -61,7 +72,18 @@ struct OrderTicketView: View {
 
     private var isBuy: Bool { ticket.side == .buy }
     private var quantity: Int { Int(quantityString.trimmingCharacters(in: .whitespaces)) ?? 0 }
-    private var orderValue: Double { Double(quantity) * ticket.price }
+
+    private var limitPrice: Double {
+        Double(limitPriceString.replacingOccurrences(of: ",", with: "")
+            .trimmingCharacters(in: .whitespaces)) ?? 0
+    }
+
+    /// A resting order is valued at its limit, since that is where it would fill.
+    private var effectivePrice: Double {
+        isLimitOrder ? limitPrice : ticket.price
+    }
+
+    private var orderValue: Double { Double(quantity) * effectivePrice }
 
     /// P&L this sell would book, at the price on screen.
     private var projectedPnL: Double {
@@ -73,6 +95,19 @@ struct OrderTicketView: View {
     /// The reason this order can't be placed, or nil when it can.
     private var blockingReason: String? {
         guard quantity > 0 else { return "Enter how many shares to \(isBuy ? "buy" : "sell")." }
+
+        if isLimitOrder {
+            guard limitPrice > 0 else { return "Enter a limit price." }
+
+            // Market convention: a buy limit rests below the current price, a sell limit
+            // above it. On the wrong side it would fill instantly, which is a market order.
+            if isBuy, limitPrice >= ticket.price {
+                return "A buy limit must be below \(CurrencyFormatter.rupees(ticket.price)) — otherwise it fills right now."
+            }
+            if !isBuy, limitPrice <= ticket.price {
+                return "A sell limit must be above \(CurrencyFormatter.rupees(ticket.price)) — otherwise it fills right now."
+            }
+        }
 
         if isBuy {
             let shortfall = orderValue - ticket.availableCash
@@ -93,6 +128,17 @@ struct OrderTicketView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     priceHeader
+
+                    Picker("Order type", selection: $isLimitOrder) {
+                        Text("Market").tag(false)
+                        Text("Limit").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+
+                    if isLimitOrder {
+                        limitPriceSection
+                    }
+
                     sizeSection
                     summarySection
 
@@ -144,6 +190,27 @@ private extension OrderTicketView {
             Text("Live market price")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    var limitPriceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(isBuy ? "Buy when it falls to" : "Sell when it rises to")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            TextField("0.00", text: $limitPriceString)
+                .keyboardType(.decimalPad)
+                .font(Theme.Typography.figure)
+
+            if limitPrice > 0, ticket.price > 0 {
+                let distance = ((limitPrice - ticket.price) / ticket.price) * 100
+                Text("\(Theme.sign(distance))\(distance, specifier: "%.2f")% from the current price")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
@@ -300,7 +367,9 @@ private extension OrderTicketView {
                 if isSubmitting {
                     ProgressView().tint(.white)
                 } else {
-                    Text("\(isBuy ? "Buy" : "Sell") \(max(quantity, 0)) \(quantity == 1 ? "share" : "shares")")
+                    Text(isLimitOrder
+                         ? "Place \(isBuy ? "Buy" : "Sell") Limit Order"
+                         : "\(isBuy ? "Buy" : "Sell") \(max(quantity, 0)) \(quantity == 1 ? "share" : "shares")")
                         .fontWeight(.semibold)
                 }
             }
@@ -328,7 +397,13 @@ private extension OrderTicketView {
         let reason = thesis.trimmingCharacters(in: .whitespacesAndNewlines)
 
         Task { @MainActor in
-            let failure = await onSubmit(size, reason)
+            let failure = await onSubmit(
+                OrderRequest(
+                    quantity: size,
+                    thesis: reason,
+                    limitPrice: isLimitOrder ? limitPrice : nil
+                )
+            )
             isSubmitting = false
 
             if let failure {
