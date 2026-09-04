@@ -13,6 +13,7 @@ struct AIAssistantView: View {
     
     @Query(sort: \PortfolioHolding.symbol) private var holdings: [PortfolioHolding]
     @Query private var settings: [UserSettings]
+    @Query(sort: \Trade.timestamp, order: .reverse) private var trades: [Trade]
     
     @State private var messageText = ""
     @State private var conversation: [ChatMessage] = [
@@ -22,7 +23,8 @@ struct AIAssistantView: View {
     @FocusState private var isInputFocused: Bool
     
     let suggestions = [
-        "Audit my current portfolio returns",
+        "Review my trading decisions against the reasons I recorded",
+        "Audit my realised returns and win rate",
         "Analyze my asset distribution risk",
         "Check liquid cash margin status"
     ]
@@ -149,6 +151,7 @@ private extension AIAssistantView {
         messageText = ""
         
         let cashBalance = settings.first?.availableCash ?? 274500.00
+        let netDeposits = PortfolioManager.shared.netDeposits(in: modelContext)
         let totalStocksValue = holdings.reduce(0) { $0 + $1.currentValue }
         let totalInvested = holdings.reduce(0) { $0 + $1.investedAmount }
         let totalNetWorth = totalStocksValue + cashBalance
@@ -160,15 +163,44 @@ private extension AIAssistantView {
             stockHoldingsDetails += "- \(holding.symbol): \(holding.quantity) Shares, Avg Cost: ₹\(holding.avgBuyPrice), Current Spot: ₹\(holding.currentPrice), Current Value: ₹\(holding.currentValue), PnL: ₹\(holding.totalPNL) (\(String(format: "%.2f", holding.pnlPercentage))%)\n"
         }
         
+        // Closed positions are what makes "audit my returns" answerable — unrealised
+        // P&L alone says nothing about whether past decisions were any good.
+        let closedTrades = trades.filter(\.isClosingTrade)
+        let realizedPnL = closedTrades.reduce(0) { $0 + ($1.realizedPnL ?? 0) }
+        let winningTrades = closedTrades.filter { ($0.realizedPnL ?? 0) > 0 }.count
+        let winRateLine = closedTrades.isEmpty
+            ? "No positions closed yet."
+            : "\(winningTrades) of \(closedTrades.count) closed positions were profitable (\(String(format: "%.0f", (Double(winningTrades) / Double(closedTrades.count)) * 100))% win rate)."
+
+        var tradeHistoryDetails = ""
+        for trade in trades.prefix(25) {
+            let date = trade.timestamp.formatted(date: .abbreviated, time: .omitted)
+            let action = trade.isBuy ? "BOUGHT" : "SOLD"
+            tradeHistoryDetails += "- \(date): \(action) \(trade.quantity) \(trade.symbol) @ ₹\(String(format: "%.2f", trade.price))"
+            if let realized = trade.realizedPnL {
+                tradeHistoryDetails += " — realised P&L ₹\(String(format: "%.2f", realized))"
+            }
+            if !trade.thesis.isEmpty {
+                tradeHistoryDetails += " — stated reason: \(trade.thesis)"
+            }
+            tradeHistoryDetails += "\n"
+        }
+
         let completePortfolioContext = """
             Available Cash Balance: ₹\(cashBalance)
             Total Equity Valuation: ₹\(totalStocksValue)
             Total Invested Capital: ₹\(totalInvested)
             Total Combined Net Worth: ₹\(totalNetWorth)
-            Net Portfolio Profit/Loss: ₹\(netPnL) (\(String(format: "%.2f", netPnLPercent))%)
+            Unrealised Profit/Loss on open positions: ₹\(netPnL) (\(String(format: "%.2f", netPnLPercent))%)
+            Realised Profit/Loss from closed positions: ₹\(String(format: "%.2f", realizedPnL))
+            Capital deposited by the user (the denominator for any honest return figure): ₹\(String(format: "%.2f", netDeposits))
+            Track record: \(winRateLine)
             
             Current Active Holdings Breakdown:
             \(stockHoldingsDetails.isEmpty ? "No active stock positions held currently." : stockHoldingsDetails)
+            
+            Trade History (up to 25 most recent, newest first):
+            \(tradeHistoryDetails.isEmpty ? "No trades recorded yet." : tradeHistoryDetails)
             """
         
         Task {
@@ -190,8 +222,11 @@ private extension AIAssistantView {
             
             let finalReply = targetReply
             await MainActor.run {
-                if conversation.last?.id == thinkingMessage.id {
-                    conversation.removeLast()
+                // Removed by identity. Matching on `last` left the placeholder stranded
+                // in the transcript whenever a second message was sent while the first
+                // was still in flight — easy to hit now that a review takes a while.
+                if let index = conversation.firstIndex(where: { $0.id == thinkingMessage.id }) {
+                    conversation.remove(at: index)
                 }
                 conversation.append(ChatMessage(text: finalReply, isUser: false))
             }

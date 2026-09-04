@@ -16,7 +16,12 @@ class MarketAPIService {
     static let shared = MarketAPIService()
     private init() {}
     
-    func fetchHistoricalData(symbol: String, range: String = "1mo") async throws -> [ChartPoint] {
+    /// Returns the price series **and** the quote metadata from the same response.
+    ///
+    /// The last candle's close is not the live price. Reading `regularMarketPrice` out of
+    /// the payload we already fetched keeps the detail screen consistent with the price
+    /// the buy flow charges, at no extra request.
+    func fetchHistoricalData(symbol: String, range: String = "1mo") async throws -> ChartSeries {
         let yahooSymbol = symbol.hasSuffix(".NS") ? symbol : "\(symbol).NS"
         
         let interval = (range == "1d") ? "15m" : "1d"
@@ -49,9 +54,41 @@ class MarketAPIService {
             }
         }
         
-        return points
+        return ChartSeries(
+            points: points,
+            latestPrice: chartResult.meta.regularMarketPrice,
+            previousClose: chartResult.meta.chartPreviousClose
+        )
     }
     
+    /// Fetches a quote for a symbol used verbatim — no `.NS` suffix.
+    ///
+    /// Index tickers (`^NSEI`, `^BSESN`) are not NSE equities and must not be suffixed.
+    /// `URL(string:)` percent-encodes the leading caret on its own.
+    func fetchIndexQuote(symbol: String) async throws -> IndexQuote {
+        let urlString = "https://query1.finance.yahoo.com/v8/finance/chart/\(symbol)?interval=1d&range=1d"
+
+        guard let url = URL(string: urlString) else {
+            throw NetworkError.invalidURL
+        }
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NetworkError.noData
+        }
+
+        let result = try JSONDecoder().decode(YahooChartResponse.self, from: data)
+
+        guard let meta = result.chart.result?.first?.meta,
+              let price = meta.regularMarketPrice,
+              let previousClose = meta.chartPreviousClose else {
+            throw NetworkError.decodingError
+        }
+
+        return IndexQuote(price: price, previousClose: previousClose)
+    }
+
     func fetchStockPrice(symbol: String) async throws -> Double {
         let yahooSymbol = symbol.hasSuffix(".NS") ? symbol : "\(symbol).NS"
         let urlString = "https://query1.finance.yahoo.com/v8/finance/chart/\(yahooSymbol)?interval=1d&range=1d"
@@ -110,4 +147,36 @@ struct ChartPoint: Identifiable {
     let id = UUID()
     let date: Date
     let price: Double
+}
+
+
+/// A market index level and its move since the previous close.
+///
+/// Index levels are point values, not rupee amounts, so they are rendered without a
+/// currency symbol.
+struct IndexQuote {
+    let price: Double
+    let previousClose: Double
+
+    var change: Double { price - previousClose }
+
+    var changePercent: Double {
+        guard previousClose > 0 else { return 0 }
+        return (change / previousClose) * 100
+    }
+
+    var isPositive: Bool { change >= 0 }
+}
+
+
+/// A price series plus the live quote that came back with it.
+struct ChartSeries {
+    let points: [ChartPoint]
+    let latestPrice: Double?
+    let previousClose: Double?
+
+    /// Prefers the live quote, falling back to the most recent close.
+    var displayPrice: Double? {
+        latestPrice ?? points.last?.price
+    }
 }

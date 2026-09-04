@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		8E494E382FFBBD7C00CEBF48 /* GroqService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E494E372FFBBD7A00CEBF48 /* GroqService.swift */; };
-		8E494E3A2FFBC01800CEBF48 /* SwiftUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E494E392FFBC01800CEBF48 /* SwiftUIView.swift */; };
 		8E89B9C92FF9889800DB6297 /* StockDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E89B9C82FF9889200DB6297 /* StockDetailView.swift */; };
 		8EBF52272FF5AA5100AB9A5C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF52252FF5AA5100AB9A5C /* Constants.swift */; };
 		8EBF52292FF5AA5100AB9A5C /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF52202FF5AA5100AB9A5C /* DashboardView.swift */; };
@@ -22,11 +21,13 @@
 		8EBF52382FF7011A00AB9A5C /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF52372FF7011700AB9A5C /* ChatMessage.swift */; };
 		8EBF523A2FF9099700AB9A5C /* MarketAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF52392FF9099400AB9A5C /* MarketAPIService.swift */; };
 		8EBF523C2FF90C8100AB9A5C /* PortfolioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF523B2FF90C7F00AB9A5C /* PortfolioManager.swift */; };
+		8EAA00042FFFFFFF00AB9A5C /* Trade.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00032FFFFFFF00AB9A5C /* Trade.swift */; };
+		8EAA00062FFFFFFF00AB9A5C /* TradeHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00052FFFFFFF00AB9A5C /* TradeHistoryView.swift */; };
+		8EAA00082FFFFFFF00AB9A5C /* PerformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		8E494E372FFBBD7A00CEBF48 /* GroqService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqService.swift; sourceTree = "<group>"; };
-		8E494E392FFBC01800CEBF48 /* SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIView.swift; sourceTree = "<group>"; };
 		8E89B9C82FF9889200DB6297 /* StockDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockDetailView.swift; sourceTree = "<group>"; };
 		8EBF520C2FF5AA2800AB9A5C /* TradeX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TradeX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EBF521D2FF5AA5100AB9A5C /* AIAssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantView.swift; sourceTree = "<group>"; };
@@ -41,6 +42,11 @@
 		8EBF52372FF7011700AB9A5C /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
 		8EBF52392FF9099400AB9A5C /* MarketAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketAPIService.swift; sourceTree = "<group>"; };
 		8EBF523B2FF90C7F00AB9A5C /* PortfolioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioManager.swift; sourceTree = "<group>"; };
+		8EAA00012FFFFFFF00AB9A5C /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		8EAA00022FFFFFFF00AB9A5C /* TradeX-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "TradeX-Info.plist"; sourceTree = "<group>"; };
+		8EAA00032FFFFFFF00AB9A5C /* Trade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Trade.swift; sourceTree = "<group>"; };
+		8EAA00052FFFFFFF00AB9A5C /* TradeHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradeHistoryView.swift; sourceTree = "<group>"; };
+		8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -71,6 +77,8 @@
 				8EBF52222FF5AA5100AB9A5C /* Views */,
 				8EBF52242FF5AA5100AB9A5C /* Models */,
 				8EBF52262FF5AA5100AB9A5C /* Core */,
+				8EAA00012FFFFFFF00AB9A5C /* Secrets.xcconfig */,
+				8EAA00022FFFFFFF00AB9A5C /* TradeX-Info.plist */,
 			);
 			sourceTree = "<group>";
 		};
@@ -93,13 +101,14 @@
 		8EBF52222FF5AA5100AB9A5C /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */,
+				8EAA00052FFFFFFF00AB9A5C /* TradeHistoryView.swift */,
 				8E89B9C82FF9889200DB6297 /* StockDetailView.swift */,
 				8EBF521D2FF5AA5100AB9A5C /* AIAssistantView.swift */,
 				8EBF521E2FF5AA5100AB9A5C /* PortfolioView.swift */,
 				8EBF521F2FF5AA5100AB9A5C /* MarketExplorerView.swift */,
 				8EBF52202FF5AA5100AB9A5C /* DashboardView.swift */,
 				8EBF52212FF5AA5100AB9A5C /* ContentView.swift */,
-				8E494E392FFBC01800CEBF48 /* SwiftUIView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -107,6 +116,7 @@
 		8EBF52242FF5AA5100AB9A5C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				8EAA00032FFFFFFF00AB9A5C /* Trade.swift */,
 				8E494E372FFBBD7A00CEBF48 /* GroqService.swift */,
 				8EBF523B2FF90C7F00AB9A5C /* PortfolioManager.swift */,
 				8EBF52392FF9099400AB9A5C /* MarketAPIService.swift */,
@@ -203,8 +213,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBF523A2FF9099700AB9A5C /* MarketAPIService.swift in Sources */,
+				8EAA00082FFFFFFF00AB9A5C /* PerformanceView.swift in Sources */,
+				8EAA00062FFFFFFF00AB9A5C /* TradeHistoryView.swift in Sources */,
+				8EAA00042FFFFFFF00AB9A5C /* Trade.swift in Sources */,
 				8E89B9C92FF9889800DB6297 /* StockDetailView.swift in Sources */,
-				8E494E3A2FFBC01800CEBF48 /* SwiftUIView.swift in Sources */,
 				8EBF52362FF6F94700AB9A5C /* MarketExplorerViewModel.swift in Sources */,
 				8EBF52272FF5AA5100AB9A5C /* Constants.swift in Sources */,
 				8EBF523C2FF90C8100AB9A5C /* PortfolioManager.swift in Sources */,
@@ -340,6 +352,7 @@
 		};
 		8EBF521A2FF5AA2800AB9A5C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8EAA00012FFFFFFF00AB9A5C /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -352,6 +365,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "TradeX-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -386,6 +400,7 @@
 		};
 		8EBF521B2FF5AA2800AB9A5C /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8EAA00012FFFFFFF00AB9A5C /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -398,6 +413,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "TradeX-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

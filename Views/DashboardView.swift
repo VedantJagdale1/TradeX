@@ -178,25 +178,43 @@ struct DashboardView: View {
             .padding()
         }
         .navigationTitle("Dashboard")
-        
+        // Net worth here is computed from each holding's stored `currentPrice`. Without
+        // this the numbers stayed frozen until the Portfolio tab happened to refresh
+        // them, so the two tabs could show different values for the same positions.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    PerformanceView()
+                } label: {
+                    Label("Performance", systemImage: "chart.xyaxis.line")
+                }
+            }
+        }
+        .task {
+            await PortfolioManager.shared.refreshPrices(modelContext: modelContext)
+            // Marked after the refresh so the day's value reflects current prices.
+            await PortfolioManager.shared.recordDailySnapshot(modelContext: modelContext)
+        }
         .alert("Edit Available Cash", isPresented: showingQuantityAlertBinding) {
             TextField("Cash Amount", text: $enteredCashString)
                 .keyboardType(.decimalPad)
             Button("Cancel", role: .cancel) {}
             Button("Save") {
-                let cleanString = enteredCashString.replacingOccurrences(of: ",", with: "")
-                if let value = Double(cleanString), value >= 0 {
-                    if let existing = settings.first {
-                        existing.availableCash = value
-                    } else {
-                        let newSettings = UserSettings(availableCash: value)
-                        modelContext.insert(newSettings)
-                    }
-                    
-                    
-                    try? modelContext.save()
-                    
-                    
+                let cleanString = enteredCashString
+                    .replacingOccurrences(of: ",", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                if let value = Double(cleanString), value >= 0, value.isFinite {
+                    // Route through PortfolioManager so this screen can never insert a
+                    // second UserSettings row alongside the one buys and sells use, and
+                    // so the change is recorded as a deposit/withdrawal rather than
+                    // silently inflating net worth.
+                    PortfolioManager.shared.adjustCash(
+                        to: value,
+                        note: "Edited from Dashboard",
+                        modelContext: modelContext
+                    )
+
                     enteredCashString = ""
                 }
             }

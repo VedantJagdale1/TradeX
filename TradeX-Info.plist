@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Expanded at build time from GROQ_API_KEY in Secrets.xcconfig.
+	     Xcode still merges its auto-generated keys (scene manifest, launch
+	     screen, orientations) on top of this partial plist. -->
+	<key>GroqAPIKey</key>
+	<string>$(GROQ_API_KEY)</string>
+</dict>
+</plist>

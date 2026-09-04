@@ -8,68 +8,83 @@
 import SwiftUI
 import SwiftData
 
-struct IndexData: Identifiable {
+struct MarketIndex: Identifiable {
     let id = UUID()
     let title: String
-    let price: Double
-    let change: Double
-    let isPositive: Bool
+    let symbol: String
+    var quote: IndexQuote?
+
+    /// Yahoo's tickers for the two headline Indian indices.
+    static let tracked = [
+        MarketIndex(title: "NIFTY 50", symbol: "^NSEI"),
+        MarketIndex(title: "SENSEX", symbol: "^BSESN")
+    ]
 }
 
 struct MarketExplorerView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = MarketExplorerViewModel()
-    
-    
-    @State private var showingQuantityAlert = false
-    @State private var selectedStockForPortfolio: NSEStock? = nil
+
+    /// One alert state for both the order ticket and its failures. Two separate
+    /// `.alert` modifiers can drop one another when the second is presented as the
+    /// first dismisses; a single presentation source can't.
+    enum TradeAlert: Identifiable {
+        case addPosition(stock: NSEStock, priceDetail: String)
+        case failure(message: String)
+
+        var id: String {
+            switch self {
+            case let .addPosition(stock, _): return "add-\(stock.id)"
+            case let .failure(message): return "fail-\(message)"
+            }
+        }
+    }
+
+    @State private var activeAlert: TradeAlert?
     @State private var enteredQuantityString = "1"
     @State private var enteredBuyPriceString = ""
-    @State private var alertMessageDetail = ""
-    
-    let mockIndices = [
-        IndexData(title: "NIFTY 50", price: 23450.75, change: 112.40, isPositive: true),
-        IndexData(title: "SENSEX", price: 77100.30, change: -240.15, isPositive: false)
-    ]
-    
+    @State private var enteredThesisString = ""
+
+    @State private var indices = MarketIndex.tracked
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                
+
                 if viewModel.searchText.isEmpty {
-                    
+
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 16) {
-                            ForEach(mockIndices) { index in
+                            ForEach(indices) { index in
                                 indexCard(for: index)
                             }
                         }
                     }
-                    
+
                     Text("Popular Stocks")
                         .font(.title3)
                         .bold()
                 }
-                
+
                 if viewModel.isSearching {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .padding(.top, 20)
                 }
-                
-                
+
+
                 VStack(spacing: 0) {
                     ForEach(viewModel.filteredStocks) { stock in
                         NavigationLink(destination: StockDetailView(stock: stock)) {
                             nseStockRow(for: stock)
                         }
                         .buttonStyle(PlainButtonStyle())
-                        
+
                         if stock.id != viewModel.filteredStocks.last?.id {
                             Divider()
                         }
                     }
-                    
+
                     if viewModel.filteredStocks.isEmpty && !viewModel.isSearching {
                         ContentUnavailableView.search(text: viewModel.searchText)
                             .padding(.top, 40)
@@ -80,90 +95,165 @@ struct MarketExplorerView: View {
         }
         .navigationTitle("Explore")
         .searchable(text: $viewModel.searchText, prompt: "Search 2,000+ NSE stocks...")
-        
-        
-        .alert("Add Position", isPresented: $showingQuantityAlert, presenting: selectedStockForPortfolio) { stock in
-            TextField("Quantity", text: $enteredQuantityString)
-                .keyboardType(.numberPad)
-            
-            TextField("Average Buy Price (or leave blank for Live)", text: $enteredBuyPriceString)
-                .keyboardType(.decimalPad)
-            
-            Button("Cancel", role: .cancel) {
-                resetAddPositionInputs()
-            }
-            
-            Button("Add Position") {
-                let normalizedBuyPrice = enteredBuyPriceString.replacingOccurrences(of: ",", with: "")
-                let quantity = Int(enteredQuantityString) ?? 1
-                
-                Task {
-                    var targetBuyPrice: Double = 0.0
-                    
-                    
-                    if normalizedBuyPrice.isEmpty || (Double(normalizedBuyPrice) ?? 0.0) <= 0 {
-                        do {
-                            targetBuyPrice = try await MarketAPIService.shared.fetchStockPrice(symbol: stock.symbol)
-                        } catch {
-                            print("Fallback tracking failed: \(error)")
-                            targetBuyPrice = 100.0
-                        }
-                    } else {
-                        
-                        targetBuyPrice = Double(normalizedBuyPrice) ?? 0.0
-                    }
-                    
-                    if quantity > 0 && targetBuyPrice > 0 {
-                        await PortfolioManager.shared.addStock(
-                            symbol: stock.symbol,
-                            companyName: stock.name,
-                            quantity: quantity,
-                            buyPrice: targetBuyPrice,
-                            modelContext: modelContext
-                        )
-                    }
+        .task {
+            await loadIndexLevels()
+        }
+
+        .alert(alertTitle, isPresented: alertPresentedBinding, presenting: activeAlert) { alert in
+            switch alert {
+            case let .addPosition(stock, _):
+                TextField("Quantity", text: $enteredQuantityString)
+                    .keyboardType(.numberPad)
+
+                TextField("Average Buy Price (or leave blank for Live)", text: $enteredBuyPriceString)
+                    .keyboardType(.decimalPad)
+
+                TextField("Why this trade? (optional)", text: $enteredThesisString)
+
+                Button("Cancel", role: .cancel) {
+                    resetAddPositionInputs()
                 }
-                resetAddPositionInputs()
+
+                Button("Add Position") {
+                    submitOrder(for: stock)
+                }
+
+            case .failure:
+                Button("OK", role: .cancel) {}
             }
-        } message: { stock in
-            Text("\(alertMessageDetail)\n\nLeave the price field blank to automatically buy at the live current market price, or enter your custom price manually below.")
+        } message: { alert in
+            switch alert {
+            case let .addPosition(_, priceDetail):
+                Text("\(priceDetail)\n\nLeave the price field blank to automatically buy at the live current market price, or enter your custom price manually below.")
+            case let .failure(message):
+                Text(message)
+            }
         }
     }
 }
 
 
 private extension MarketExplorerView {
-    
+
+    var alertTitle: String {
+        switch activeAlert {
+        case .addPosition: return "Add Position"
+        case .failure: return "Order Not Placed"
+        case nil: return ""
+        }
+    }
+
+    var alertPresentedBinding: Binding<Bool> {
+        Binding(
+            get: { activeAlert != nil },
+            set: { isPresented in
+                if !isPresented { activeAlert = nil }
+            }
+        )
+    }
+
     func resetAddPositionInputs() {
         enteredQuantityString = "1"
         enteredBuyPriceString = ""
-        alertMessageDetail = ""
+        enteredThesisString = ""
     }
-    
-    func indexCard(for index: IndexData) -> some View {
+
+    /// Places the order, or reports exactly why it could not be placed. Nothing here
+    /// invents a price or a quantity — a bad input or a failed quote aborts the trade.
+    func submitOrder(for stock: NSEStock) {
+        let quantityText = enteredQuantityString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let priceText = enteredBuyPriceString
+            .replacingOccurrences(of: ",", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let thesisText = enteredThesisString.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        resetAddPositionInputs()
+
+        Task { @MainActor in
+            do {
+                guard let quantity = Int(quantityText), quantity > 0 else {
+                    throw PortfolioError.invalidQuantity
+                }
+
+                let buyPrice: Double
+                if priceText.isEmpty {
+                    guard let livePrice = try? await MarketAPIService.shared.fetchStockPrice(symbol: stock.symbol) else {
+                        throw PortfolioError.priceUnavailable(symbol: stock.symbol)
+                    }
+                    buyPrice = livePrice
+                } else {
+                    guard let enteredPrice = Double(priceText), enteredPrice > 0 else {
+                        throw PortfolioError.invalidPrice
+                    }
+                    buyPrice = enteredPrice
+                }
+
+                try await PortfolioManager.shared.addStock(
+                    symbol: stock.symbol,
+                    companyName: stock.name,
+                    quantity: quantity,
+                    buyPrice: buyPrice,
+                    thesis: thesisText,
+                    modelContext: modelContext
+                )
+            } catch {
+                activeAlert = .failure(message: error.localizedDescription)
+            }
+        }
+    }
+
+    /// Loads both index levels concurrently. A failure leaves that card in its
+    /// unavailable state rather than showing a stale or invented number.
+    func loadIndexLevels() async {
+        await withTaskGroup(of: (Int, IndexQuote?).self) { group in
+            for (position, index) in indices.enumerated() {
+                let symbol = index.symbol
+                group.addTask {
+                    (position, try? await MarketAPIService.shared.fetchIndexQuote(symbol: symbol))
+                }
+            }
+
+            for await (position, quote) in group where quote != nil {
+                indices[position].quote = quote
+            }
+        }
+    }
+
+    func indexCard(for index: MarketIndex) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(index.title)
                 .font(.caption)
                 .fontWeight(.bold)
                 .foregroundColor(.secondary)
-            
-            Text("₹\(index.price, specifier: "%.2f")")
-                .font(.headline)
-            
-            HStack(spacing: 2) {
-                Image(systemName: index.isPositive ? "arrow.up" : "arrow.down")
-                Text("\(index.isPositive ? "+" : "")\(index.change, specifier: "%.2f")")
+
+            if let quote = index.quote {
+                // No ₹ symbol: an index is a level in points, not a rupee amount.
+                Text("\(quote.price, specifier: "%.2f")")
+                    .font(.headline)
+
+                HStack(spacing: 2) {
+                    Image(systemName: quote.isPositive ? "arrow.up" : "arrow.down")
+                    Text("\(quote.isPositive ? "+" : "")\(quote.change, specifier: "%.2f") (\(quote.changePercent, specifier: "%.2f")%)")
+                }
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(quote.isPositive ? .green : .red)
+            } else {
+                Text("—")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+
+                Text("Level unavailable")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-            .font(.caption)
-            .fontWeight(.semibold)
-            .foregroundColor(index.isPositive ? .green : .red)
         }
         .padding()
         .frame(width: 160, alignment: .leading)
         .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
     }
-    
+
     func nseStockRow(for stock: NSEStock) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
@@ -174,28 +264,23 @@ private extension MarketExplorerView {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
             }
-            
+
             Spacer()
-            
-            
+
+
             Button {
-                selectedStockForPortfolio = stock
                 resetAddPositionInputs()
-                
-                
-                Task {
-                    do {
-                        let livePrice = try await MarketAPIService.shared.fetchStockPrice(symbol: stock.symbol)
-                        await MainActor.run {
-                            self.alertMessageDetail = "Live Market Price: ₹\(String(format: "%.2f", livePrice))"
-                            self.showingQuantityAlert = true
-                        }
-                    } catch {
-                        await MainActor.run {
-                            self.alertMessageDetail = "Live price fetch unavailable right now."
-                            self.showingQuantityAlert = true
-                        }
+
+                // The stock and its quote travel together into the alert, so a slow
+                // response for one row can no longer label itself with another row's stock.
+                Task { @MainActor in
+                    let priceDetail: String
+                    if let livePrice = try? await MarketAPIService.shared.fetchStockPrice(symbol: stock.symbol) {
+                        priceDetail = "Live Market Price: \(CurrencyFormatter.rupees(livePrice))"
+                    } else {
+                        priceDetail = "Live price unavailable right now — enter a buy price manually."
                     }
+                    activeAlert = .addPosition(stock: stock, priceDetail: priceDetail)
                 }
             } label: {
                 Image(systemName: "plus.circle.fill")

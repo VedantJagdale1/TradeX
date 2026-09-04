@@ -12,7 +12,13 @@ class GroqService {
     private init() {}
 
     
-    private let apiKey = ""
+    /// Injected at build time from Secrets.xcconfig (GROQ_API_KEY) via the
+    /// INFOPLIST_KEY_GroqAPIKey build setting. Never hardcode the key here —
+    /// anything in source ends up in the shipped binary and in git history.
+    private var apiKey: String {
+        let value = Bundle.main.object(forInfoDictionaryKey: "GroqAPIKey") as? String
+        return value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
 
     
     private let model = "llama-3.3-70b-versatile"
@@ -20,11 +26,12 @@ class GroqService {
     
     func generateInsight(userPrompt: String, portfolioContext: String) async throws -> String {
 
-        guard !apiKey.isEmpty, apiKey.hasPrefix("gsk_") else {
+        let key = apiKey
+        guard !key.isEmpty, key.hasPrefix("gsk_") else {
             throw NSError(
                 domain: "GroqService",
                 code: 401,
-                userInfo: [NSLocalizedDescriptionKey: "Missing or invalid Groq API key. Get a free one at https://console.groq.com/keys — it must start with 'gsk_'."]
+                userInfo: [NSLocalizedDescriptionKey: "Missing or invalid Groq API key. Copy Secrets.example.xcconfig to Secrets.xcconfig and set GROQ_API_KEY. Get a free key at https://console.groq.com/keys — it must start with 'gsk_'."]
             )
         }
 
@@ -33,9 +40,24 @@ class GroqService {
         }
 
         let systemPrompt = """
-        You are TradeX AI, a highly sophisticated portfolio strategist and financial advisor.
-        You are given the user's current portfolio status below. Use this data to provide deeply
-        analytical, concise, and professional answers. Keep your reply direct and easy to read.
+        You are TradeX AI, a portfolio analyst inside a paper-trading practice app.
+        Use the data below to give analytical, concise, professional answers. Keep replies
+        direct and easy to read.
+
+        How to use this data:
+        - Trade history is the record of what the user actually did. Reference specific
+          trades by symbol and date rather than speaking in generalities.
+        - Where a trade has a stated reason, compare that reasoning against how the trade
+          actually turned out, and say plainly whether it held up.
+        - Look for patterns across trades: holding periods for winners versus losers,
+          repeated entries into the same name, position sizing, reactions to drawdowns.
+        - Distinguish realised P&L (booked on closed positions) from unrealised P&L
+          (open positions, not yet money). Measure returns against deposited capital.
+        - If the history is too thin to support a conclusion, say so instead of inventing
+          a pattern.
+
+        This is simulated trading for practice. Analyse the user's decisions and the data;
+        do not present your output as personalised investment advice.
 
         [CURRENT USER PORTFOLIO DATA]
         \(portfolioContext)
@@ -53,7 +75,7 @@ class GroqService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONSerialization.data(withJSONObject: jsonPayload)
 
         let (data, response) = try await URLSession.shared.data(for: request)

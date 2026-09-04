@@ -13,7 +13,13 @@ struct TradeXApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .modelContainer(for: [PortfolioHolding.self, UserSettings.self])
+                .modelContainer(for: [
+                    PortfolioHolding.self,
+                    UserSettings.self,
+                    Trade.self,
+                    CashAdjustment.self,
+                    PortfolioSnapshot.self
+                ])
         }
     }
 }

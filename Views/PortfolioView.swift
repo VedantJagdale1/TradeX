@@ -12,25 +12,42 @@ struct PortfolioView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \PortfolioHolding.symbol) private var holdings: [PortfolioHolding]
     @State private var isLoading = false
-    @State private var holdingPendingRemoval: PortfolioHolding?
-    
-    
+
+    /// Single presentation source for the sell ticket and its failures, so the error
+    /// can't be swallowed by the ticket's own dismissal.
+    enum SellAlert: Identifiable {
+        case ticket(holding: PortfolioHolding)
+        case failure(message: String)
+
+        var id: String {
+            switch self {
+            case let .ticket(holding): return "sell-\(holding.id)"
+            case let .failure(message): return "fail-\(message)"
+            }
+        }
+    }
+
+    @State private var activeAlert: SellAlert?
+    @State private var sellQuantityString = ""
+    @State private var sellThesisString = ""
+
+
     var totalInvested: Double { holdings.reduce(0) { $0 + $1.investedAmount } }
     var totalCurrent: Double { holdings.reduce(0) { $0 + $1.currentValue } }
     var totalPNL: Double { totalCurrent - totalInvested }
     var totalPNLPercentage: Double { totalInvested > 0 ? (totalPNL / totalInvested) * 100 : 0 }
     var isOverallProfit: Bool { totalPNL >= 0 }
-    
+
     var body: some View {
         List {
-            
+
             Section {
                 performanceMetricCard
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
             }
-            
-            
+
+
             Section(header: HStack {
                 Text("Open Positions (\(holdings.count))")
                     .font(.headline)
@@ -44,20 +61,25 @@ struct PortfolioView: View {
                         .font(.title3)
                         .foregroundColor(.purple)
                         .onTapGesture {
-                            Task { await updateLivePrices() }
+                            Task { await updateLivePrices(force: true) }
                         }
                 }
             }.padding(.vertical, 4)) {
-                
+
                 ForEach(holdings) { holding in
                     holdingRow(for: holding)
                         .listRowBackground(Color(.secondarySystemBackground))
-                    
+
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            // Labelled "Sell", not "Remove": this credits the proceeds
+                            // back to cash and books a realised P&L, so calling it a
+                            // delete misrepresented what it does.
                             Button(role: .destructive) {
-                                holdingPendingRemoval = holding
+                                sellQuantityString = "\(holding.quantity)"
+                                sellThesisString = ""
+                                activeAlert = .ticket(holding: holding)
                             } label: {
-                                Label("Remove", systemImage: "trash")
+                                Label("Sell", systemImage: "indianrupeesign.circle")
                             }
                         }
                 }
@@ -65,58 +87,100 @@ struct PortfolioView: View {
         }
         .listStyle(InsetGroupedListStyle())
         .navigationTitle("Portfolio")
-        .alert("Remove Stock", isPresented: removeStockAlertBinding, presenting: holdingPendingRemoval) { holding in
-            Button("Cancel", role: .cancel) {
-                holdingPendingRemoval = nil
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    TradeHistoryView()
+                } label: {
+                    Label("Trade History", systemImage: "clock.arrow.circlepath")
+                }
             }
-            Button("Remove", role: .destructive) {
-                PortfolioManager.shared.removeStock(holding, modelContext: modelContext)
-                holdingPendingRemoval = nil
+        }
+        .alert(alertTitle, isPresented: alertPresentedBinding, presenting: activeAlert) { alert in
+            switch alert {
+            case let .ticket(holding):
+                TextField("Quantity to sell", text: $sellQuantityString)
+                    .keyboardType(.numberPad)
+
+                TextField("Why sell? (optional)", text: $sellThesisString)
+
+                Button("Cancel", role: .cancel) {}
+
+                Button("Sell", role: .destructive) {
+                    submitSell(holding, quantityText: sellQuantityString, thesis: sellThesisString)
+                }
+
+            case .failure:
+                Button("OK", role: .cancel) {}
             }
-        } message: { holding in
-            Text("Remove \(holding.symbol) from your portfolio?")
+        } message: { alert in
+            switch alert {
+            case let .ticket(holding):
+                Text("You hold \(holding.quantity) \(holding.symbol) at ₹\(holding.currentPrice, specifier: "%.2f") (avg cost ₹\(holding.avgBuyPrice, specifier: "%.2f")).\n\nSell fewer than \(holding.quantity) to close part of the position.")
+            case let .failure(message):
+                Text(message)
+            }
         }
         .task {
-            await updateLivePrices()
+            await updateLivePrices(force: false)
         }
     }
 }
 
 
 private extension PortfolioView {
-    
-    var removeStockAlertBinding: Binding<Bool> {
+
+    var alertTitle: String {
+        switch activeAlert {
+        case let .ticket(holding): return "Sell \(holding.symbol)"
+        case .failure: return "Sale Not Completed"
+        case nil: return ""
+        }
+    }
+
+    var alertPresentedBinding: Binding<Bool> {
         Binding(
-            get: { holdingPendingRemoval != nil },
+            get: { activeAlert != nil },
             set: { isPresented in
-                if !isPresented {
-                    holdingPendingRemoval = nil
-                }
+                if !isPresented { activeAlert = nil }
             }
         )
     }
-    
-    func updateLivePrices() async {
-        guard !isLoading else { return }
-        isLoading = true
-        
-        for holding in holdings {
+
+    func submitSell(_ holding: PortfolioHolding, quantityText: String, thesis: String) {
+        let trimmedQuantity = quantityText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedThesis = thesis.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        Task { @MainActor in
+            // Let the ticket finish dismissing first. Presenting a second alert in the
+            // same turn as the first one's dismissal drops it.
+            try? await Task.sleep(nanoseconds: 350_000_000)
+
             do {
-                let freshPrice = try await MarketAPIService.shared.fetchStockPrice(symbol: holding.symbol)
-                PortfolioManager.shared.updateCurrentPrice(
-                    symbol: holding.symbol,
-                    currentPrice: freshPrice,
+                guard let quantity = Int(trimmedQuantity) else {
+                    throw PortfolioError.invalidQuantity
+                }
+                try PortfolioManager.shared.sellStock(
+                    holding,
+                    quantity: quantity,
+                    thesis: trimmedThesis,
                     modelContext: modelContext
                 )
             } catch {
-                print("Could not refresh price for \(holding.symbol): \(error)")
+                activeAlert = .failure(message: error.localizedDescription)
             }
         }
-        
-        isLoading = false
     }
-    
-    
+
+    func updateLivePrices(force: Bool) async {
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
+
+        await PortfolioManager.shared.refreshPrices(modelContext: modelContext, force: force)
+    }
+
+
     var performanceMetricCard: some View {
         VStack(spacing: 16) {
             HStack {
@@ -128,7 +192,7 @@ private extension PortfolioView {
                         .font(.system(size: 30, weight: .bold, design: .rounded))
                 }
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("Total Returns")
                         .font(.caption)
@@ -142,9 +206,9 @@ private extension PortfolioView {
                         .foregroundColor(isOverallProfit ? .green : .red)
                 }
             }
-            
+
             Divider()
-            
+
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Invested Capital")
@@ -160,8 +224,8 @@ private extension PortfolioView {
         .background(Color(.secondarySystemBackground))
         .cornerRadius(16)
     }
-    
-    
+
+
     func holdingRow(for holding: PortfolioHolding) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
@@ -175,13 +239,13 @@ private extension PortfolioView {
                 .font(.caption)
                 .foregroundColor(.secondary)
             }
-            
+
             Spacer()
-            
+
             VStack(alignment: .trailing, spacing: 4) {
                 Text("₹\(holding.currentValue, specifier: "%.2f")")
                     .font(.headline)
-                
+
                 HStack(spacing: 4) {
                     Image(systemName: holding.isProfit ? "arrow.up" : "arrow.down")
                     Text("\(holding.isProfit ? "+" : "")\(holding.pnlPercentage, specifier: "%.2f")%")
