@@ -37,6 +37,7 @@
 		8EBB02032FFFFFFF00AB9A5C /* OrderLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB01032FFFFFFF00AB9A5C /* OrderLogicTests.swift */; };
 		8EBB02042FFFFFFF00AB9A5C /* ReconstructionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB01042FFFFFFF00AB9A5C /* ReconstructionTests.swift */; };
 		8EBB04012FFFFFFF00AB9A5C /* PortfolioManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03012FFFFFFF00AB9A5C /* PortfolioManagerTests.swift */; };
+		8EBB04022FFFFFFF00AB9A5C /* LimitOrderServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03022FFFFFFF00AB9A5C /* LimitOrderServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -84,6 +85,7 @@
 		8EBB01042FFFFFFF00AB9A5C /* ReconstructionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconstructionTests.swift; sourceTree = "<group>"; };
 		8EBB00022FFFFFFF00AB9A5C /* TradeXTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TradeXTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EBB03012FFFFFFF00AB9A5C /* PortfolioManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioManagerTests.swift; sourceTree = "<group>"; };
+		8EBB03022FFFFFFF00AB9A5C /* LimitOrderServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitOrderServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -191,6 +193,7 @@
 		8EBB00032FFFFFFF00AB9A5C /* TradeXTests */ = {
 			isa = PBXGroup;
 			children = (
+				8EBB03022FFFFFFF00AB9A5C /* LimitOrderServiceTests.swift */,
 				8EBB03012FFFFFFF00AB9A5C /* PortfolioManagerTests.swift */,
 				8EBB01002FFFFFFF00AB9A5C /* MarketSessionTests.swift */,
 				8EBB01012FFFFFFF00AB9A5C /* QuoteCacheTests.swift */,
@@ -337,6 +340,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBB02002FFFFFFF00AB9A5C /* MarketSessionTests.swift in Sources */,
+				8EBB04022FFFFFFF00AB9A5C /* LimitOrderServiceTests.swift in Sources */,
 				8EBB04012FFFFFFF00AB9A5C /* PortfolioManagerTests.swift in Sources */,
 				8EBB02012FFFFFFF00AB9A5C /* QuoteCacheTests.swift in Sources */,
 				8EBB02022FFFFFFF00AB9A5C /* PerformanceMathTests.swift in Sources */,

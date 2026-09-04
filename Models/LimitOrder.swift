@@ -104,6 +104,12 @@ final class LimitOrder {
 }
 
 
+/// What happened when an order was executed.
+enum FillOutcome: Equatable {
+    case filled(price: Double)
+    case failed(reason: String)
+}
+
 @MainActor
 enum LimitOrderService {
 
@@ -208,26 +214,48 @@ enum LimitOrderService {
     }
 
     /// Prices every open order and executes the ones the market has reached.
-    static func checkAll(modelContext: ModelContext) async {
+    ///
+    /// The clock, the quote source and the portfolio are injectable so this can be
+    /// exercised without the network and without only passing during trading hours.
+    static func checkAll(
+        modelContext: ModelContext,
+        manager: PortfolioManager? = nil,
+        now: Date = Date(),
+        quoteSource: ((Set<String>) async -> [String: Double])? = nil
+    ) async {
+        // Resolved here rather than as a default argument: those evaluate outside the
+        // actor, and `shared` is main-actor isolated.
+        let manager = manager ?? .shared
+
         var open = ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
             .filter(\.isOpen)
         guard !open.isEmpty else { return }
 
         // Retire day orders that outlived their session, whether or not the market is
         // open now — an expired order must not linger and fill days later.
-        let expired = open.filter { $0.hasExpired() }
+        let expired = open.filter { $0.hasExpired(at: now) }
         if !expired.isEmpty {
             for order in expired { order.state = .expired }
             try? modelContext.save()
-            open.removeAll { $0.hasExpired() }
+            open.removeAll { $0.hasExpired(at: now) }
         }
 
         // Fills are transactions and only happen inside a session. Yahoo serves the last
         // close outside hours, which would otherwise execute orders overnight.
-        guard MarketSession.isOpen(), !open.isEmpty else { return }
+        guard MarketSession.isOpen(at: now), !open.isEmpty else { return }
 
         let symbols = Set(open.map(\.symbol))
-        let quotes = await withTaskGroup(of: (String, Double?).self) { group in
+        let quotes = await (quoteSource ?? liveQuotes)(symbols)
+
+        for order in open {
+            guard let price = quotes[order.symbol], order.wouldFill(at: price) else { continue }
+            let outcome = await execute(order, manager: manager, modelContext: modelContext)
+            await notify(order: order, outcome: outcome)
+        }
+    }
+
+    private static func liveQuotes(_ symbols: Set<String>) async -> [String: Double] {
+        await withTaskGroup(of: (String, Double?).self) { group in
             for symbol in symbols {
                 group.addTask {
                     (symbol, try? await MarketAPIService.shared.fetchStockPrice(symbol: symbol))
@@ -239,11 +267,6 @@ enum LimitOrderService {
             }
             return collected
         }
-
-        for order in open {
-            guard let price = quotes[order.symbol], order.wouldFill(at: price) else { continue }
-            await execute(order, marketPrice: price, modelContext: modelContext)
-        }
     }
 
     /// Fills at the **limit price**, not the price we happened to observe.
@@ -252,14 +275,17 @@ enum LimitOrderService {
     /// market may have run well past the limit. A real order would have executed as the
     /// price crossed — filling at the limit avoids handing the user a better price than
     /// they could actually have got.
-    private static func execute(
+    @discardableResult
+    static func execute(
         _ order: LimitOrder,
-        marketPrice: Double,
+        manager: PortfolioManager? = nil,
         modelContext: ModelContext
-    ) async {
+    ) async -> FillOutcome {
+        let manager = manager ?? .shared
+
         do {
             if order.isBuy {
-                try await PortfolioManager.shared.addStock(
+                try await manager.addStock(
                     symbol: order.symbol,
                     companyName: order.companyName,
                     quantity: order.quantity,
@@ -274,7 +300,7 @@ enum LimitOrderService {
                 // Sell at the limit rather than the stored mark, so the booked P&L
                 // reflects the price the order actually rested at.
                 holding.currentPrice = order.limitPrice
-                try PortfolioManager.shared.sellStock(
+                try manager.sellStock(
                     holding,
                     quantity: order.quantity,
                     thesis: order.thesis,
@@ -285,17 +311,17 @@ enum LimitOrderService {
             order.state = .filled
             order.filledAt = Date()
             order.filledPrice = order.limitPrice
-            await notify(order: order, succeeded: true)
+            try? modelContext.save()
+            return .filled(price: order.limitPrice)
 
         } catch {
             // Conditions can change between placing and filling — the cash may be spent
             // or the shares already sold. The order fails rather than silently vanishing.
             order.state = .failed
             order.failureReason = error.localizedDescription
-            await notify(order: order, succeeded: false)
+            try? modelContext.save()
+            return .failed(reason: error.localizedDescription)
         }
-
-        try? modelContext.save()
     }
 
     private static func holding(for symbol: String, modelContext: ModelContext) -> PortfolioHolding? {
@@ -305,9 +331,9 @@ enum LimitOrderService {
         return try? modelContext.fetch(descriptor).first
     }
 
-    private static func notify(order: LimitOrder, succeeded: Bool) async {
+    private static func notify(order: LimitOrder, outcome: FillOutcome) async {
         let content = UNMutableNotificationContent()
-        if succeeded {
+        if case .filled = outcome {
             content.title = "\(order.isBuy ? "Bought" : "Sold") \(order.quantity) \(order.symbol)"
             content.body = "Your limit order filled at \(CurrencyFormatter.rupees(order.limitPrice))."
         } else {
