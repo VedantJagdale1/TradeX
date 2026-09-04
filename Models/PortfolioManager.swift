@@ -38,7 +38,17 @@ enum PortfolioError: LocalizedError {
 final class PortfolioManager {
     static let shared = PortfolioManager()
 
-    private init() {}
+    /// Internal rather than private so tests can work against their own instance instead
+    /// of mutating the shared one, which parallel tests would race on.
+    init() {}
+
+    /// How a fresh mark is fetched after a trade fills.
+    ///
+    /// Injectable so tests are deterministic and don't need the network — a trade's
+    /// correctness has nothing to do with whether a quote happens to be reachable.
+    var quoteProvider: (String) async -> Double? = { symbol in
+        try? await MarketAPIService.shared.fetchStockPrice(symbol: symbol)
+    }
 
     static let defaultStartingCash = 274_500.00
 
@@ -149,7 +159,7 @@ final class PortfolioManager {
 
         // The trade is already committed — a failed quote refresh must not surface
         // as an order failure, so this stays best-effort.
-        if let liveCurrentPrice = try? await MarketAPIService.shared.fetchStockPrice(symbol: symbol) {
+        if let liveCurrentPrice = await quoteProvider(symbol) {
             updateCurrentPrice(symbol: symbol, currentPrice: liveCurrentPrice, modelContext: modelContext)
         }
     }
