@@ -78,7 +78,7 @@ struct StockDetailView: View {
                         }
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundColor(isPositive ? .green : .red)
+                        .foregroundColor(isPositive ? Theme.profit : Theme.loss)
 
                         Text(rangeCaption)
                             .font(.caption)
@@ -111,7 +111,7 @@ struct StockDetailView: View {
                                 .foregroundStyle(
                                     LinearGradient(
                                         gradient: Gradient(colors: [
-                                            isPositive ? Color.green.opacity(0.25) : Color.red.opacity(0.25),
+                                            isPositive ? Theme.profit.opacity(0.25) : Theme.loss.opacity(0.25),
                                             Color.clear
                                         ]),
                                         startPoint: .top,
@@ -124,7 +124,7 @@ struct StockDetailView: View {
                                     x: .value("Time", point.date),
                                     y: .value("Price", point.price)
                                 )
-                                .foregroundStyle(isPositive ? Color.green : Color.red)
+                                .foregroundStyle(isPositive ? Theme.profit : Theme.loss)
                                 .interpolationMethod(.catmullRom)
                             }
                         }
@@ -152,7 +152,7 @@ struct StockDetailView: View {
                         .padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.green)
+                .tint(Theme.profit)
                 .disabled(currentPrice <= 0)
                 .padding(.horizontal)
 
@@ -264,8 +264,6 @@ private extension StockDetailView {
                 .fontWeight(.semibold)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(10)
+        .card()
     }
 }

@@ -51,8 +51,8 @@ struct DashboardView: View {
                         PercentText(value: pnlPercentage, font: .headline)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(isProfit ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
-                            .cornerRadius(8)
+                            .background(isProfit ? Theme.profit.opacity(0.1) : Theme.loss.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
                     }
                     
                     Divider()
@@ -78,7 +78,7 @@ struct DashboardView: View {
                                     Text("Available Cash")
                                         .font(.caption)
                                 }
-                                .foregroundColor(.purple)
+                                .foregroundStyle(Theme.accent)
                                 
                                 MoneyText(amount: cashBalance, font: .headline)
                             }
@@ -104,9 +104,7 @@ struct DashboardView: View {
                         }
                         .frame(height: 150)
                     }
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(12)
+                    .card()
                 }
                 
                 
@@ -142,7 +140,7 @@ struct DashboardView: View {
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
                                     .background(Color(.systemBackground))
-                                    .cornerRadius(6)
+                                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
                                 
                                 Spacer()
                                 
@@ -151,9 +149,7 @@ struct DashboardView: View {
                                     PercentText(value: item.pnlPercentage)
                                 }
                             }
-                            .padding()
-                            .background(Color(.secondarySystemBackground))
-                            .cornerRadius(12)
+                            .card()
                         }
                     }
                 }

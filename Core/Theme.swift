@@ -22,6 +22,13 @@ enum Theme {
     static let background = Color(.systemBackground)
     static let raisedSurface = Color(.tertiarySystemBackground)
 
+    /// Buy and sell sides. Distinct from profit/loss — a sell is not a loss.
+    static let buySide = Color.blue
+    static let sellSide = Color.purple
+
+    /// A soft, non-alarming caution — trailing the benchmark isn't an error.
+    static let caution = Color.orange
+
     /// Green above water, red below. Zero counts as flat-positive, matching
     /// `PortfolioHolding.isProfit`.
     static func pnl(_ value: Double) -> Color {

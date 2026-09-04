@@ -111,7 +111,7 @@ private extension PerformanceView {
                     .foregroundColor(.secondary)
                 Text("\(portfolioReturn >= 0 ? "+" : "")\(portfolioReturn, specifier: "%.2f")%")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundColor(portfolioReturn >= 0 ? .green : .red)
+                    .foregroundColor(portfolioReturn >= 0 ? Theme.profit : Theme.loss)
                 Text("Time-weighted, so deposits don't count as gains")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -124,21 +124,19 @@ private extension PerformanceView {
                 statTile(
                     title: "NIFTY 50",
                     value: String(format: "%@%.2f%%", benchmarkReturn >= 0 ? "+" : "", benchmarkReturn),
-                    tint: benchmarkReturn >= 0 ? .green : .red
+                    tint: benchmarkReturn >= 0 ? Theme.profit : Theme.loss
                 )
                 Spacer()
                 statTile(
                     title: "Difference",
                     value: String(format: "%@%.2f%%", (portfolioReturn - benchmarkReturn) >= 0 ? "+" : "", portfolioReturn - benchmarkReturn),
-                    tint: isBeatingBenchmark ? .green : .red
+                    tint: isBeatingBenchmark ? Theme.profit : Theme.loss
                 )
                 Spacer()
                 statTile(title: "Days Tracked", value: "\(snapshots.count)", tint: .primary)
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(16)
+        .card()
     }
 
     func statTile(title: String, value: String, tint: Color) -> some View {
@@ -166,22 +164,20 @@ private extension PerformanceView {
                 .interpolationMethod(.catmullRom)
             }
             .chartForegroundStyleScale([
-                PerformanceMath.portfolioSeries: Color.purple,
+                PerformanceMath.portfolioSeries: Theme.accent,
                 PerformanceMath.benchmarkSeries: Color.secondary
             ])
             .chartLegend(position: .bottom)
             .frame(height: 240)
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(16)
+        .card()
     }
 
     var verdictCard: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: isBeatingBenchmark ? "trophy.fill" : "info.circle.fill")
                 .font(.title3)
-                .foregroundColor(isBeatingBenchmark ? .green : .orange)
+                .foregroundStyle(isBeatingBenchmark ? Theme.profit : Theme.caution)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(isBeatingBenchmark ? "Ahead of the index" : "Behind the index")
@@ -196,9 +192,7 @@ private extension PerformanceView {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(16)
+        .card()
     }
 }
 

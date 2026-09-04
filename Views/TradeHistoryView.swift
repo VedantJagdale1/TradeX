@@ -87,7 +87,7 @@ private extension TradeHistoryView {
                     .foregroundColor(.secondary)
                 Text("\(isNetProfit ? "+" : "")₹\(totalRealizedPnL, specifier: "%.2f")")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundColor(closedTrades.isEmpty ? .primary : (isNetProfit ? .green : .red))
+                    .foregroundColor(closedTrades.isEmpty ? .primary : (isNetProfit ? Theme.profit : Theme.loss))
                 Text("Booked across \(closedTrades.count) closed position\(closedTrades.count == 1 ? "" : "s")")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -122,9 +122,7 @@ private extension TradeHistoryView {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(16)
+        .card()
     }
 
     func statTile(title: String, value: String) -> some View {
@@ -153,14 +151,14 @@ private extension TradeHistoryView {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: trade.isBuy ? "arrow.down.left.circle.fill" : "arrow.up.right.circle.fill")
                 .font(.title3)
-                .foregroundColor(trade.isBuy ? .blue : .purple)
+                .foregroundStyle(trade.isBuy ? Theme.buySide : Theme.sellSide)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(trade.isBuy ? "BOUGHT" : "SOLD")
                         .font(.caption2)
                         .fontWeight(.bold)
-                        .foregroundColor(trade.isBuy ? .blue : .purple)
+                        .foregroundStyle(trade.isBuy ? Theme.buySide : Theme.sellSide)
                     Text(trade.symbol)
                         .font(.headline)
                 }
@@ -194,7 +192,7 @@ private extension TradeHistoryView {
                     Text("\(realizedPnL >= 0 ? "+" : "")₹\(realizedPnL, specifier: "%.2f")")
                         .font(.caption)
                         .fontWeight(.bold)
-                        .foregroundColor(realizedPnL >= 0 ? .green : .red)
+                        .foregroundColor(realizedPnL >= 0 ? Theme.profit : Theme.loss)
                 }
             }
         }

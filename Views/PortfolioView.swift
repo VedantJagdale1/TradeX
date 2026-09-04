@@ -46,7 +46,7 @@ struct PortfolioView: View {
                 } else {
                     Image(systemName: "arrow.clockwise.circle.fill")
                         .font(.title3)
-                        .foregroundColor(.purple)
+                        .foregroundStyle(Theme.accent)
                         .onTapGesture {
                             Task { await updateLivePrices(force: true) }
                         }
@@ -184,7 +184,7 @@ private extension PortfolioView {
                 }
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundColor(holding.isProfit ? .green : .red)
+                .foregroundColor(holding.isProfit ? Theme.profit : Theme.loss)
             }
         }
         .padding(.vertical, 4)

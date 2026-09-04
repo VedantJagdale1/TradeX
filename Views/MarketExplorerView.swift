@@ -169,7 +169,7 @@ private extension MarketExplorerView {
                 }
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundColor(quote.isPositive ? .green : .red)
+                .foregroundColor(quote.isPositive ? Theme.profit : Theme.loss)
             } else {
                 Text("—")
                     .font(.headline)
@@ -183,7 +183,7 @@ private extension MarketExplorerView {
         .padding()
         .frame(width: 160, alignment: .leading)
         .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
     }
 
     func nseStockRow(for stock: NSEStock) -> some View {

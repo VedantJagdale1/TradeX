@@ -65,12 +65,12 @@ struct AIAssistantView: View {
                                     .fontWeight(.medium)
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 8)
-                                    .background(Color.purple.opacity(0.08))
-                                    .foregroundColor(.purple)
-                                    .cornerRadius(20)
+                                    .background(Theme.accent.opacity(0.08))
+                                    .foregroundStyle(Theme.accent)
+                                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.pill, style: .continuous))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 20)
-                                            .stroke(Color.purple.opacity(0.15), lineWidth: 1)
+                                            .stroke(Theme.accent.opacity(0.15), lineWidth: 1)
                                     )
                             }
                         }
@@ -100,9 +100,9 @@ private extension AIAssistantView {
                     .lineSpacing(4)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .background(message.isUser ? Color.blue : Color(.secondarySystemBackground))
+                    .background(message.isUser ? Theme.accent : Theme.surface)
                     .foregroundColor(message.isUser ? .white : .primary)
-                    .cornerRadius(16, corners: message.isUser ? [.topLeft, .topRight, .bottomLeft] : [.topLeft, .topRight, .bottomRight])
+                    .cornerRadius(Theme.Radius.card, corners: message.isUser ? [.topLeft, .topRight, .bottomLeft] : [.topLeft, .topRight, .bottomRight])
             }
             .frame(maxWidth: 280, alignment: message.isUser ? .trailing : .leading)
             
@@ -117,12 +117,12 @@ private extension AIAssistantView {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(Color(.secondarySystemBackground))
-                .cornerRadius(24)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.pill, style: .continuous))
             
             Button(action: sendMessage) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
-                    .foregroundColor(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .purple)
+                    .foregroundStyle(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Theme.accent)
             }
             .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
@@ -137,7 +137,7 @@ private extension AIAssistantView {
                         isInputFocused = false
                     }
                     .fontWeight(.semibold)
-                    .foregroundColor(.purple)
+                    .foregroundStyle(Theme.accent)
                 }
             }
         }
