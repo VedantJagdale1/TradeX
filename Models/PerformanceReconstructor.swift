@@ -6,6 +6,65 @@
 import Foundation
 import SwiftData
 
+/// A trade, stripped of SwiftData so the replay can be reasoned about and tested
+/// without a model container.
+struct LedgerTrade: Sendable {
+    let symbol: String
+    let isBuy: Bool
+    let quantity: Int
+    let price: Double
+    let timestamp: Date
+
+    var cashFlow: Double {
+        (isBuy ? -1 : 1) * Double(quantity) * price
+    }
+
+    var quantityChange: Int {
+        isBuy ? quantity : -quantity
+    }
+}
+
+/// Money paid in or taken out by hand.
+struct LedgerCashFlow: Sendable {
+    let amount: Double
+    let timestamp: Date
+}
+
+/// What the account looked like before the ledger began.
+struct OpeningState: Equatable, Sendable {
+    var cash: Double
+    var quantities: [String: Int]
+}
+
+/// One reconstructed day.
+struct ReconstructedDay: Equatable, Sendable {
+    let netWorth: Double
+    let netDeposits: Double
+}
+
+/// Daily closes with carry-forward.
+struct DailyCloses: Sendable {
+    let sorted: [(day: Date, close: Double)]
+
+    nonisolated init(sorted: [(day: Date, close: Double)]) {
+        self.sorted = sorted.sorted { $0.day < $1.day }
+    }
+
+    /// The close on `day`, or the most recent one before it.
+    ///
+    /// A symbol has no close on a day it didn't trade — a holiday, a halt, or before it
+    /// listed. Carrying the previous close forward is what a broker's statement does;
+    /// dropping the position would make the portfolio appear to shrink.
+    func close(onOrBefore day: Date) -> Double? {
+        var match: Double?
+        for entry in sorted {
+            if entry.day <= day { match = entry.close } else { break }
+        }
+        return match
+    }
+}
+
+
 /// Rebuilds performance history from the trade ledger.
 ///
 /// Snapshots are only written going forward, so the Performance screen is empty until
@@ -13,7 +72,6 @@ import SwiftData
 /// quantity, price and timestamp — which is enough to know exactly what was held on any
 /// past date. Combined with historical closes, the whole curve can be recovered from
 /// data already on the device.
-@MainActor
 enum PerformanceReconstructor {
 
     enum ReconstructionError: LocalizedError {
@@ -30,27 +88,115 @@ enum PerformanceReconstructor {
         }
     }
 
-    /// Recomputes daily marks back to the first trade.
+    // MARK: - Pure replay
+
+    /// Derives the state the account must have been in before the ledger started.
     ///
-    /// Existing snapshots are left alone — those were taken from live prices and are
-    /// more accurate than a reconstruction from daily closes.
-    /// - Returns: how many days were added.
+    /// Anything today's holdings and cash contain that the ledger cannot account for —
+    /// positions created before the journal existed, or a balance the trades don't
+    /// explain — has to have been there all along. Replaying every flow forward from
+    /// this state lands exactly on the present.
+    static func openingState(
+        currentQuantities: [String: Int],
+        currentCash: Double,
+        trades: [LedgerTrade],
+        adjustments: [LedgerCashFlow]
+    ) -> OpeningState {
+        var quantities = currentQuantities
+        for trade in trades {
+            quantities[trade.symbol, default: 0] -= trade.quantityChange
+        }
+
+        let tradedCash = trades.reduce(0.0) { $0 + $1.cashFlow }
+        let deposited = adjustments.reduce(0.0) { $0 + $1.amount }
+
+        return OpeningState(
+            cash: currentCash - deposited - tradedCash,
+            quantities: quantities.filter { $0.value != 0 }
+        )
+    }
+
+    /// Values the account at the end of `day`.
+    static func state(
+        on day: Date,
+        endOfDay: Date,
+        opening: OpeningState,
+        trades: [LedgerTrade],
+        adjustments: [LedgerCashFlow],
+        closes: [String: DailyCloses],
+        fallbackDeposits: Double
+    ) -> ReconstructedDay {
+        let tradesSoFar = trades.filter { $0.timestamp < endOfDay }
+        let adjustmentsSoFar = adjustments.filter { $0.timestamp < endOfDay }
+
+        let deposits = adjustmentsSoFar.isEmpty
+            ? fallbackDeposits
+            : adjustmentsSoFar.reduce(0.0) { $0 + $1.amount }
+
+        var cash = opening.cash + adjustmentsSoFar.reduce(0.0) { $0 + $1.amount }
+        var quantities = opening.quantities
+        for trade in tradesSoFar {
+            cash += trade.cashFlow
+            quantities[trade.symbol, default: 0] += trade.quantityChange
+        }
+
+        var equity = 0.0
+        for (symbol, quantity) in quantities where quantity > 0 {
+            guard let close = closes[symbol]?.close(onOrBefore: day) else { continue }
+            equity += Double(quantity) * close
+        }
+
+        return ReconstructedDay(netWorth: cash + equity, netDeposits: deposits)
+    }
+
+    /// The smallest Yahoo range that still reaches back to `start`.
+    static func yahooRange(covering start: Date, now: Date = Date()) -> String {
+        let days = Calendar.current.dateComponents([.day], from: start, to: now).day ?? 0
+        switch days {
+        case ..<25: return "1mo"
+        case ..<80: return "3mo"
+        case ..<170: return "6mo"
+        case ..<350: return "1y"
+        case ..<700: return "2y"
+        case ..<1800: return "5y"
+        default: return "max"
+        }
+    }
+
+    // MARK: - Rebuild
+
+    /// Recomputes daily marks back to the first trade.
+    /// - Returns: how many days were written.
+    @MainActor
     @discardableResult
     static func rebuild(modelContext: ModelContext) async throws -> Int {
-        let trades = (try? modelContext.fetch(
+        let storedTrades = (try? modelContext.fetch(
             FetchDescriptor<Trade>(sortBy: [SortDescriptor(\.timestamp)])
         )) ?? []
-        guard let firstTrade = trades.first else { throw ReconstructionError.noTrades }
+        guard let firstTrade = storedTrades.first else { throw ReconstructionError.noTrades }
 
-        let adjustments = (try? modelContext.fetch(
+        let storedAdjustments = (try? modelContext.fetch(
             FetchDescriptor<CashAdjustment>(sortBy: [SortDescriptor(\.timestamp)])
         )) ?? []
 
-        let start = min(firstTrade.timestamp, adjustments.first?.timestamp ?? firstTrade.timestamp)
+        let trades = storedTrades.map {
+            LedgerTrade(
+                symbol: $0.symbol,
+                isBuy: $0.isBuy,
+                quantity: $0.quantity,
+                price: $0.price,
+                timestamp: $0.timestamp
+            )
+        }
+        let adjustments = storedAdjustments.map {
+            LedgerCashFlow(amount: $0.amount, timestamp: $0.timestamp)
+        }
+
+        let start = min(firstTrade.timestamp, storedAdjustments.first?.timestamp ?? firstTrade.timestamp)
         let range = yahooRange(covering: start)
 
         // The benchmark doubles as the trading calendar: its closes tell us which days
-        // the market was actually open, so no snapshot is invented for a weekend.
+        // the market was actually open, so no mark is invented for a weekend.
         guard let benchmark = try? await MarketAPIService.shared.fetchIndexHistory(
             symbol: PortfolioManager.benchmarkSymbol,
             range: range
@@ -58,28 +204,18 @@ enum PerformanceReconstructor {
             throw ReconstructionError.benchmarkUnavailable
         }
 
-        // Anchor to the present. Whatever the ledger cannot account for must have
-        // existed before it started, so it is carried as an opening position rather
-        // than treated as zero — otherwise holdings created before the journal existed
-        // vanish from the past and the curve invents a crash that never happened.
         let holdings = (try? modelContext.fetch(FetchDescriptor<PortfolioHolding>())) ?? []
+        var currentQuantities: [String: Int] = [:]
+        for holding in holdings { currentQuantities[holding.symbol] = holding.quantity }
 
-        var openingQuantities: [String: Int] = [:]
-        for holding in holdings { openingQuantities[holding.symbol] = holding.quantity }
-        for trade in trades {
-            openingQuantities[trade.symbol, default: 0] += trade.isBuy ? -trade.quantity : trade.quantity
-        }
+        let opening = openingState(
+            currentQuantities: currentQuantities,
+            currentCash: PortfolioManager.shared.settings(in: modelContext).availableCash,
+            trades: trades,
+            adjustments: adjustments
+        )
 
-        // Same reconciliation for cash: replaying every flow from the opening balance
-        // must land exactly on today's balance.
-        let tradedCash = trades.reduce(0.0) { total, trade in
-            total + (trade.isBuy ? -1 : 1) * Double(trade.quantity) * trade.price
-        }
-        let totalAdjustments = adjustments.reduce(0.0) { $0 + $1.amount }
-        let openingCash = PortfolioManager.shared.settings(in: modelContext).availableCash
-            - totalAdjustments - tradedCash
-
-        let symbols = Set(trades.map(\.symbol)).union(openingQuantities.filter { $0.value > 0 }.keys)
+        let symbols = Set(trades.map(\.symbol)).union(opening.quantities.keys)
         let histories = await closes(for: symbols, range: range)
 
         let calendar = tradingCalendar()
@@ -92,11 +228,8 @@ enum PerformanceReconstructor {
         }
 
         let liveDays = Set(
-            allSnapshots
-                .filter { !$0.isReconstructed }
-                .map { calendar.startOfDay(for: $0.day) }
+            allSnapshots.filter { !$0.isReconstructed }.map { calendar.startOfDay(for: $0.day) }
         )
-
         let startDay = calendar.startOfDay(for: start)
         var added = 0
 
@@ -104,39 +237,22 @@ enum PerformanceReconstructor {
             let day = calendar.startOfDay(for: point.date)
             guard day >= startDay, !liveDays.contains(day) else { continue }
 
-            // Everything that had happened by the end of this day.
             let endOfDay = calendar.date(byAdding: .day, value: 1, to: day) ?? day
-            let tradesSoFar = trades.filter { $0.timestamp < endOfDay }
-            let adjustmentsSoFar = adjustments.filter { $0.timestamp < endOfDay }
-
-            let deposits = adjustmentsSoFar.isEmpty
-                ? PortfolioManager.defaultStartingCash
-                : adjustmentsSoFar.reduce(0) { $0 + $1.amount }
-
-            var cash = openingCash + adjustmentsSoFar.reduce(0.0) { $0 + $1.amount }
-            var quantities = openingQuantities
-            for trade in tradesSoFar {
-                let value = Double(trade.quantity) * trade.price
-                if trade.isBuy {
-                    cash -= value
-                    quantities[trade.symbol, default: 0] += trade.quantity
-                } else {
-                    cash += value
-                    quantities[trade.symbol, default: 0] -= trade.quantity
-                }
-            }
-
-            var equity = 0.0
-            for (symbol, quantity) in quantities where quantity > 0 {
-                guard let close = histories[symbol]?.close(onOrBefore: day) else { continue }
-                equity += Double(quantity) * close
-            }
+            let value = state(
+                on: day,
+                endOfDay: endOfDay,
+                opening: opening,
+                trades: trades,
+                adjustments: adjustments,
+                closes: histories,
+                fallbackDeposits: PortfolioManager.defaultStartingCash
+            )
 
             modelContext.insert(
                 PortfolioSnapshot(
                     day: day,
-                    netWorth: cash + equity,
-                    netDeposits: deposits,
+                    netWorth: value.netWorth,
+                    netDeposits: value.netDeposits,
                     niftyLevel: point.price,
                     isReconstructed: true
                 )
@@ -147,28 +263,6 @@ enum PerformanceReconstructor {
         try? modelContext.save()
         return added
     }
-}
-
-
-private extension PerformanceReconstructor {
-
-    /// Daily closes keyed by day, with the ability to carry the last one forward.
-    struct DailyCloses {
-        let sorted: [(day: Date, close: Double)]
-
-        /// The close on `day`, or the most recent one before it.
-        ///
-        /// A symbol has no close on a day it didn't trade — a holiday, a halt, or before
-        /// it listed. Carrying the previous close forward is what a broker's statement
-        /// does; skipping the position would make the portfolio appear to shrink.
-        func close(onOrBefore day: Date) -> Double? {
-            var match: Double?
-            for entry in sorted {
-                if entry.day <= day { match = entry.close } else { break }
-            }
-            return match
-        }
-    }
 
     static func tradingCalendar() -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -176,7 +270,7 @@ private extension PerformanceReconstructor {
         return calendar
     }
 
-    static func closes(for symbols: Set<String>, range: String) async -> [String: DailyCloses] {
+    private static func closes(for symbols: Set<String>, range: String) async -> [String: DailyCloses] {
         let calendar = tradingCalendar()
 
         return await withTaskGroup(of: (String, DailyCloses?).self) { group in
@@ -187,9 +281,9 @@ private extension PerformanceReconstructor {
                         range: range
                     ) else { return (symbol, nil) }
 
-                    let entries = series.points
-                        .map { (day: calendar.startOfDay(for: $0.date), close: $0.price) }
-                        .sorted { $0.day < $1.day }
+                    let entries = series.points.map {
+                        (day: calendar.startOfDay(for: $0.date), close: $0.price)
+                    }
                     return (symbol, DailyCloses(sorted: entries))
                 }
             }
@@ -199,20 +293,6 @@ private extension PerformanceReconstructor {
                 if let closes { collected[symbol] = closes }
             }
             return collected
-        }
-    }
-
-    /// The smallest Yahoo range that still reaches back to `start`.
-    static func yahooRange(covering start: Date) -> String {
-        let days = Calendar.current.dateComponents([.day], from: start, to: Date()).day ?? 0
-        switch days {
-        case ..<25: return "1mo"
-        case ..<80: return "3mo"
-        case ..<170: return "6mo"
-        case ..<350: return "1y"
-        case ..<700: return "2y"
-        case ..<1800: return "5y"
-        default: return "max"
         }
     }
 }

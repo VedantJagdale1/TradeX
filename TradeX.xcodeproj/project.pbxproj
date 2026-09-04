@@ -31,7 +31,22 @@
 		8EAA00122FFFFFFF00AB9A5C /* AlertsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00112FFFFFFF00AB9A5C /* AlertsView.swift */; };
 		8EAA00142FFFFFFF00AB9A5C /* LimitOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00132FFFFFFF00AB9A5C /* LimitOrder.swift */; };
 		8EAA00162FFFFFFF00AB9A5C /* PerformanceReconstructor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00152FFFFFFF00AB9A5C /* PerformanceReconstructor.swift */; };
+		8EBB02002FFFFFFF00AB9A5C /* MarketSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB01002FFFFFFF00AB9A5C /* MarketSessionTests.swift */; };
+		8EBB02012FFFFFFF00AB9A5C /* QuoteCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB01012FFFFFFF00AB9A5C /* QuoteCacheTests.swift */; };
+		8EBB02022FFFFFFF00AB9A5C /* PerformanceMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB01022FFFFFFF00AB9A5C /* PerformanceMathTests.swift */; };
+		8EBB02032FFFFFFF00AB9A5C /* OrderLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB01032FFFFFFF00AB9A5C /* OrderLogicTests.swift */; };
+		8EBB02042FFFFFFF00AB9A5C /* ReconstructionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB01042FFFFFFF00AB9A5C /* ReconstructionTests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		8EBB000B2FFFFFFF00AB9A5C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8EBF52042FF5AA2800AB9A5C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8EBF520B2FF5AA2800AB9A5C;
+			remoteInfo = TradeX;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		8E494E372FFBBD7A00CEBF48 /* GroqService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqService.swift; sourceTree = "<group>"; };
@@ -61,6 +76,12 @@
 		8EAA00112FFFFFFF00AB9A5C /* AlertsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertsView.swift; sourceTree = "<group>"; };
 		8EAA00132FFFFFFF00AB9A5C /* LimitOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitOrder.swift; sourceTree = "<group>"; };
 		8EAA00152FFFFFFF00AB9A5C /* PerformanceReconstructor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceReconstructor.swift; sourceTree = "<group>"; };
+		8EBB01002FFFFFFF00AB9A5C /* MarketSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketSessionTests.swift; sourceTree = "<group>"; };
+		8EBB01012FFFFFFF00AB9A5C /* QuoteCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteCacheTests.swift; sourceTree = "<group>"; };
+		8EBB01022FFFFFFF00AB9A5C /* PerformanceMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceMathTests.swift; sourceTree = "<group>"; };
+		8EBB01032FFFFFFF00AB9A5C /* OrderLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderLogicTests.swift; sourceTree = "<group>"; };
+		8EBB01042FFFFFFF00AB9A5C /* ReconstructionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconstructionTests.swift; sourceTree = "<group>"; };
+		8EBB00022FFFFFFF00AB9A5C /* TradeXTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TradeXTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -79,6 +100,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8EBB00052FFFFFFF00AB9A5C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -91,6 +119,7 @@
 				8EBF52222FF5AA5100AB9A5C /* Views */,
 				8EBF52242FF5AA5100AB9A5C /* Models */,
 				8EBF52262FF5AA5100AB9A5C /* Core */,
+				8EBB00032FFFFFFF00AB9A5C /* TradeXTests */,
 				8EAA00012FFFFFFF00AB9A5C /* Secrets.xcconfig */,
 				8EAA00022FFFFFFF00AB9A5C /* TradeX-Info.plist */,
 			);
@@ -100,6 +129,7 @@
 			isa = PBXGroup;
 			children = (
 				8EBF520C2FF5AA2800AB9A5C /* TradeX.app */,
+				8EBB00022FFFFFFF00AB9A5C /* TradeXTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -156,6 +186,18 @@
 			path = Core;
 			sourceTree = "<group>";
 		};
+		8EBB00032FFFFFFF00AB9A5C /* TradeXTests */ = {
+			isa = PBXGroup;
+			children = (
+				8EBB01002FFFFFFF00AB9A5C /* MarketSessionTests.swift */,
+				8EBB01012FFFFFFF00AB9A5C /* QuoteCacheTests.swift */,
+				8EBB01022FFFFFFF00AB9A5C /* PerformanceMathTests.swift */,
+				8EBB01032FFFFFFF00AB9A5C /* OrderLogicTests.swift */,
+				8EBB01042FFFFFFF00AB9A5C /* ReconstructionTests.swift */,
+			);
+			path = TradeXTests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -180,6 +222,26 @@
 			productName = TradeX;
 			productReference = 8EBF520C2FF5AA2800AB9A5C /* TradeX.app */;
 			productType = "com.apple.product-type.application";
+		};
+		8EBB00012FFFFFFF00AB9A5C /* TradeXTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8EBB00072FFFFFFF00AB9A5C /* Build configuration list for PBXNativeTarget "TradeXTests" */;
+			buildPhases = (
+				8EBB00042FFFFFFF00AB9A5C /* Sources */,
+				8EBB00052FFFFFFF00AB9A5C /* Frameworks */,
+				8EBB00062FFFFFFF00AB9A5C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8EBB000A2FFFFFFF00AB9A5C /* PBXTargetDependency */,
+			);
+			name = TradeXTests;
+			packageProductDependencies = (
+			);
+			productName = TradeXTests;
+			productReference = 8EBB00022FFFFFFF00AB9A5C /* TradeXTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -213,6 +275,7 @@
 			projectRoot = "";
 			targets = (
 				8EBF520B2FF5AA2800AB9A5C /* TradeX */,
+				8EBB00012FFFFFFF00AB9A5C /* TradeXTests */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +286,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBF52332FF6F1BA00AB9A5C /* stock_list.csv in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8EBB00062FFFFFFF00AB9A5C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -259,7 +329,27 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8EBB00042FFFFFFF00AB9A5C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8EBB02002FFFFFFF00AB9A5C /* MarketSessionTests.swift in Sources */,
+				8EBB02012FFFFFFF00AB9A5C /* QuoteCacheTests.swift in Sources */,
+				8EBB02022FFFFFFF00AB9A5C /* PerformanceMathTests.swift in Sources */,
+				8EBB02032FFFFFFF00AB9A5C /* OrderLogicTests.swift in Sources */,
+				8EBB02042FFFFFFF00AB9A5C /* ReconstructionTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8EBB000A2FFFFFFF00AB9A5C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8EBF520B2FF5AA2800AB9A5C /* TradeX */;
+			targetProxy = 8EBB000B2FFFFFFF00AB9A5C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		8EBF52172FF5AA2800AB9A5C /* Debug */ = {
@@ -474,6 +564,48 @@
 			};
 			name = Release;
 		};
+		8EBB00082FFFFFFF00AB9A5C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VF7JY7AB79;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = vedant.TradeXTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TradeX.app/TradeX";
+			};
+			name = Debug;
+		};
+		8EBB00092FFFFFFF00AB9A5C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VF7JY7AB79;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = vedant.TradeXTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TradeX.app/TradeX";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -491,6 +623,15 @@
 			buildConfigurations = (
 				8EBF521A2FF5AA2800AB9A5C /* Debug */,
 				8EBF521B2FF5AA2800AB9A5C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8EBB00072FFFFFFF00AB9A5C /* Build configuration list for PBXNativeTarget "TradeXTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8EBB00082FFFFFFF00AB9A5C /* Debug */,
+				8EBB00092FFFFFFF00AB9A5C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
