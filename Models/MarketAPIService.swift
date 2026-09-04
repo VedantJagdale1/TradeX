@@ -58,8 +58,15 @@ class MarketAPIService {
     /// the payload we already fetched keeps the detail screen consistent with the price
     /// the buy flow charges, at no extra request.
     func fetchHistoricalData(symbol: String, range: String = "1mo") async throws -> ChartSeries {
-        let yahooSymbol = symbol.hasSuffix(".NS") ? symbol : "\(symbol).NS"
-        
+        try await chartSeries(yahooSymbol: symbol.hasSuffix(".NS") ? symbol : "\(symbol).NS", range: range)
+    }
+
+    /// History for a symbol used verbatim — index tickers must not be suffixed.
+    func fetchIndexHistory(symbol: String, range: String) async throws -> ChartSeries {
+        try await chartSeries(yahooSymbol: symbol, range: range)
+    }
+
+    private func chartSeries(yahooSymbol: String, range: String) async throws -> ChartSeries {
         let interval = (range == "1d") ? "15m" : "1d"
         
         let urlString = "https://query1.finance.yahoo.com/v8/finance/chart/\(yahooSymbol)?range=\(range)&interval=\(interval)"

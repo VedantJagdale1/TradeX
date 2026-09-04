@@ -111,17 +111,23 @@ final class PortfolioSnapshot {
     var netDeposits: Double
     var niftyLevel: Double?
 
+    /// True when derived from the trade ledger rather than observed live. A rebuild
+    /// replaces its own past output but never overwrites a mark taken from real prices.
+    var isReconstructed: Bool = false
+
     init(
         id: UUID = UUID(),
         day: Date,
         netWorth: Double,
         netDeposits: Double,
-        niftyLevel: Double? = nil
+        niftyLevel: Double? = nil,
+        isReconstructed: Bool = false
     ) {
         self.id = id
         self.day = day
         self.netWorth = netWorth
         self.netDeposits = netDeposits
         self.niftyLevel = niftyLevel
+        self.isReconstructed = isReconstructed
     }
 }

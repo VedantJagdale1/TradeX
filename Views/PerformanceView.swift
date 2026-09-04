@@ -66,7 +66,19 @@ enum PerformanceMath {
 }
 
 struct PerformanceView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \PortfolioSnapshot.day) private var snapshots: [PortfolioSnapshot]
+    @Query private var trades: [Trade]
+
+    @State private var isRebuilding = false
+    @State private var rebuildNotice: String?
+
+    /// There is only a past to rebuild if a trade predates today. Offering the button
+    /// for an account whose first trade is today promises something it cannot deliver.
+    private var canRebuild: Bool {
+        guard let earliest = trades.map(\.timestamp).min() else { return false }
+        return earliest < Calendar.current.startOfDay(for: Date())
+    }
 
     private var portfolioPoints: [GrowthPoint] { PerformanceMath.portfolioGrowth(from: snapshots) }
     private var benchmarkPoints: [GrowthPoint] { PerformanceMath.benchmarkGrowth(from: snapshots) }
@@ -75,6 +87,22 @@ struct PerformanceView: View {
     private var portfolioReturn: Double { (portfolioPoints.last?.value ?? PerformanceMath.base) - PerformanceMath.base }
     private var benchmarkReturn: Double { (benchmarkPoints.last?.value ?? PerformanceMath.base) - PerformanceMath.base }
     private var isBeatingBenchmark: Bool { portfolioReturn >= benchmarkReturn }
+
+    /// Fits the axis to the two curves.
+    ///
+    /// Both series are rebased to 100 and typically move a couple of percent, so an axis
+    /// anchored at zero squashes the whole comparison into a flat smear along the top.
+    private var growthDomain: ClosedRange<Double> {
+        let values = (portfolioPoints + benchmarkPoints).map(\.value)
+        guard let low = values.min(), let high = values.max() else {
+            return (PerformanceMath.base - 5)...(PerformanceMath.base + 5)
+        }
+        // Keep the 100 baseline in frame so above/below stays readable.
+        let lower = min(low, PerformanceMath.base)
+        let upper = max(high, PerformanceMath.base)
+        let padding = max((upper - lower) * 0.18, 0.4)
+        return (lower - padding)...(upper + padding)
+    }
 
     var body: some View {
         Group {
@@ -91,17 +119,70 @@ struct PerformanceView: View {
                 ContentUnavailableView {
                     Label("Not Enough History Yet", systemImage: "chart.xyaxis.line")
                 } description: {
-                    Text("Your account is marked once a day. Open TradeX again tomorrow and your performance will start plotting against the NIFTY 50.")
+                    Text(canRebuild
+                         ? "Your account is marked once a day — but your trades already say what you held and when, so the past can be rebuilt from them."
+                         : "Your account is marked once a day. Open TradeX again tomorrow and your performance will start plotting against the NIFTY 50.")
+                } actions: {
+                    if canRebuild {
+                        Button {
+                            Task { await rebuild() }
+                        } label: {
+                            if isRebuilding {
+                                ProgressView()
+                            } else {
+                                Text("Rebuild From Trade History")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isRebuilding)
+
+                        if let rebuildNotice {
+                            Text(rebuildNotice)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
                 }
             }
         }
         .navigationTitle("Performance")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if isRebuilding {
+                    ProgressView()
+                } else if canRebuild {
+                    Button {
+                        Task { await rebuild() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .accessibilityLabel("Rebuild from trade history")
+                }
+            }
+        }
     }
 }
 
 
 private extension PerformanceView {
+
+    /// Fills in the days before snapshots started being taken.
+    func rebuild() async {
+        isRebuilding = true
+        rebuildNotice = nil
+        defer { isRebuilding = false }
+
+        do {
+            let added = try await PerformanceReconstructor.rebuild(modelContext: modelContext)
+            if added == 0 {
+                rebuildNotice = "Already up to date — every trading day since your first trade is recorded."
+            }
+        } catch {
+            rebuildNotice = error.localizedDescription
+        }
+    }
 
     var summaryCard: some View {
         VStack(spacing: 16) {
@@ -155,18 +236,26 @@ private extension PerformanceView {
             Text("Growth of ₹100")
                 .font(.headline)
 
-            Chart(portfolioPoints + benchmarkPoints) { point in
-                LineMark(
-                    x: .value("Date", point.date),
-                    y: .value("Growth", point.value)
-                )
-                .foregroundStyle(by: .value("Series", point.series))
-                .interpolationMethod(.catmullRom)
+            Chart {
+                // The rebase point: anything above this line is a gain.
+                RuleMark(y: .value("Start", PerformanceMath.base))
+                    .foregroundStyle(Color.secondary.opacity(0.35))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+
+                ForEach(portfolioPoints + benchmarkPoints) { point in
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Growth", point.value)
+                    )
+                    .foregroundStyle(by: .value("Series", point.series))
+                    .interpolationMethod(.catmullRom)
+                }
             }
             .chartForegroundStyleScale([
                 PerformanceMath.portfolioSeries: Theme.accent,
                 PerformanceMath.benchmarkSeries: Color.secondary
             ])
+            .chartYScale(domain: growthDomain)
             .chartLegend(position: .bottom)
             .frame(height: 240)
         }
