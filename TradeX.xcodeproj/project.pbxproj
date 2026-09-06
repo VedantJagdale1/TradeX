@@ -45,6 +45,7 @@
 		8EBB06042FFFFFFF00AB9A5C /* Sector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05042FFFFFFF00AB9A5C /* Sector.swift */; };
 		8EBB04042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */; };
 		8EBB04052FFFFFFF00AB9A5C /* AppLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03052FFFFFFF00AB9A5C /* AppLockTests.swift */; };
+		8EBB04062FFFFFFF00AB9A5C /* StopOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03062FFFFFFF00AB9A5C /* StopOrderTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -100,6 +101,7 @@
 		8EBB05042FFFFFFF00AB9A5C /* Sector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sector.swift; sourceTree = "<group>"; };
 		8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectorAndHolidayTests.swift; sourceTree = "<group>"; };
 		8EBB03052FFFFFFF00AB9A5C /* AppLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockTests.swift; sourceTree = "<group>"; };
+		8EBB03062FFFFFFF00AB9A5C /* StopOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopOrderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -211,6 +213,7 @@
 		8EBB00032FFFFFFF00AB9A5C /* TradeXTests */ = {
 			isa = PBXGroup;
 			children = (
+				8EBB03062FFFFFFF00AB9A5C /* StopOrderTests.swift */,
 				8EBB03052FFFFFFF00AB9A5C /* AppLockTests.swift */,
 				8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */,
 				8EBB03032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift */,
@@ -365,6 +368,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBB02002FFFFFFF00AB9A5C /* MarketSessionTests.swift in Sources */,
+				8EBB04062FFFFFFF00AB9A5C /* StopOrderTests.swift in Sources */,
 				8EBB04052FFFFFFF00AB9A5C /* AppLockTests.swift in Sources */,
 				8EBB04042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift in Sources */,
 				8EBB04032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift in Sources */,

@@ -9,9 +9,14 @@ import UserNotifications
 
 /// A resting order that executes when the market reaches a chosen price.
 ///
-/// Note the direction convention is the market's, and is the opposite of a price
-/// alert's: a *buy* limit rests **below** the current price (buy no worse than X), a
-/// *sell* limit rests **above** it (sell no worse than X).
+/// Covers limits and stops alike — they share a lifecycle, a checking loop and a set of
+/// reservations, and differ only in which side of the market they wait on.
+///
+/// Limits wait for a *better* price: a buy limit rests **below** the market, a sell limit
+/// **above** it. Stops wait for a *worse* one and are the exact inverse: a sell stop
+/// rests **below** the market to cap a loss, a buy stop **above** it to enter a breakout.
+/// Getting that inversion wrong turns a stop-loss into a take-profit, so it is asserted
+/// in both directions by the tests.
 @Model
 final class LimitOrder {
     @Attribute(.unique) var id: UUID
@@ -19,8 +24,22 @@ final class LimitOrder {
     var companyName: String
     var isBuy: Bool
     var quantity: Int
+
+    /// The price the order acts at: the limit for a limit order, the trigger for a stop.
+    /// For a trailing stop this holds the current trigger, recomputed as the market moves.
     var limitPrice: Double
+
     var thesis: String
+
+    /// Stored as a raw string; read through `kind`.
+    var kindRaw: String
+
+    /// How far a trailing stop sits from the best price seen, as a percentage.
+    var trailPercent: Double?
+
+    /// The best price reached since the order was placed — the high for a trailing sell,
+    /// the low for a trailing buy. A trail ratchets in the favourable direction only.
+    var extremePrice: Double?
 
     /// Stored as a raw string; read through `state`.
     var statusRaw: String
@@ -42,6 +61,8 @@ final class LimitOrder {
         isBuy: Bool,
         quantity: Int,
         limitPrice: Double,
+        kind: Kind = .limit,
+        trailPercent: Double? = nil,
         thesis: String = "",
         expiresAt: Date? = nil,
         createdAt: Date = Date()
@@ -54,12 +75,35 @@ final class LimitOrder {
         self.limitPrice = limitPrice
         self.thesis = thesis
         self.statusRaw = State.open.rawValue
+        self.kindRaw = kind.rawValue
+        self.trailPercent = trailPercent
         self.expiresAt = expiresAt
         self.createdAt = createdAt
     }
 
     enum State: String {
         case open, filled, cancelled, failed, expired
+    }
+
+    enum Kind: String, CaseIterable, Identifiable {
+        case limit, stop, trailingStop
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .limit: return "Limit"
+            case .stop: return "Stop"
+            case .trailingStop: return "Trail"
+            }
+        }
+
+        var isStop: Bool { self != .limit }
+    }
+
+    var kind: Kind {
+        get { Kind(rawValue: kindRaw) ?? .limit }
+        set { kindRaw = newValue.rawValue }
     }
 
     enum TimeInForce: String, CaseIterable, Identifiable {
@@ -82,9 +126,34 @@ final class LimitOrder {
 
     var isOpen: Bool { state == .open }
 
-    /// A buy fills at or below its limit; a sell at or above.
+    /// Whether the market has reached this order.
+    ///
+    /// Limits and stops wait on opposite sides: a buy limit fills at or below its price,
+    /// a buy stop at or above it.
     func wouldFill(at price: Double) -> Bool {
-        isBuy ? price <= limitPrice : price >= limitPrice
+        if kind.isStop {
+            return isBuy ? price >= limitPrice : price <= limitPrice
+        }
+        return isBuy ? price <= limitPrice : price >= limitPrice
+    }
+
+    /// Moves a trailing stop's trigger in the favourable direction only.
+    ///
+    /// A trail follows the price up (for a sell) and never gives ground — that ratchet is
+    /// the whole point: it locks in gains without capping them.
+    /// - Returns: true when the trigger moved.
+    @discardableResult
+    func updateTrail(with price: Double) -> Bool {
+        guard kind == .trailingStop, let trailPercent, price > 0 else { return false }
+
+        let isNewExtreme = extremePrice.map { isBuy ? price < $0 : price > $0 } ?? true
+        guard isNewExtreme else { return false }
+
+        extremePrice = price
+        limitPrice = isBuy
+            ? price * (1 + trailPercent / 100)
+            : price * (1 - trailPercent / 100)
+        return true
     }
 
     func hasExpired(at date: Date = Date()) -> Bool {
@@ -98,7 +167,16 @@ final class LimitOrder {
     }
 
     var conditionDescription: String {
-        let base = "\(isBuy ? "Buy" : "Sell") \(quantity) at \(CurrencyFormatter.rupees(limitPrice)) or better"
+        let base: String
+        switch kind {
+        case .limit:
+            base = "\(isBuy ? "Buy" : "Sell") \(quantity) at \(CurrencyFormatter.rupees(limitPrice)) or better"
+        case .stop:
+            base = "\(isBuy ? "Buy" : "Sell") \(quantity) if it \(isBuy ? "rises" : "falls") to \(CurrencyFormatter.rupees(limitPrice))"
+        case .trailingStop:
+            let trail = trailPercent.map { String(format: "%.1f%%", $0) } ?? ""
+            base = "\(isBuy ? "Buy" : "Sell") \(quantity), trailing \(trail) · now \(CurrencyFormatter.rupees(limitPrice))"
+        }
         return expiresAt == nil ? base : base + " · today"
     }
 }
@@ -126,13 +204,17 @@ enum LimitOrderService {
         quantity: Int,
         limitPrice: Double,
         marketPrice: Double,
+        kind: LimitOrder.Kind = .limit,
+        trailPercent: Double? = nil,
         thesis: String,
         timeInForce: LimitOrder.TimeInForce,
         holding: PortfolioHolding?,
         modelContext: ModelContext
     ) async -> String? {
 
-        let isMarketable = isBuy ? limitPrice >= marketPrice : limitPrice <= marketPrice
+        // Only a limit can already be marketable. A stop placed on the correct side of
+        // the market is by definition not yet reached.
+        let isMarketable = kind == .limit && (isBuy ? limitPrice >= marketPrice : limitPrice <= marketPrice)
 
         if isMarketable {
             guard MarketSession.isOpen() else {
@@ -154,17 +236,25 @@ enum LimitOrderService {
             )
         }
 
-        modelContext.insert(
-            LimitOrder(
-                symbol: symbol,
-                companyName: companyName,
-                isBuy: isBuy,
-                quantity: quantity,
-                limitPrice: limitPrice,
-                thesis: thesis,
-                expiresAt: timeInForce == .day ? MarketSession.nextClose() : nil
-            )
+        let order = LimitOrder(
+            symbol: symbol,
+            companyName: companyName,
+            isBuy: isBuy,
+            quantity: quantity,
+            limitPrice: limitPrice,
+            kind: kind,
+            trailPercent: trailPercent,
+            thesis: thesis,
+            expiresAt: timeInForce == .day ? MarketSession.nextClose() : nil
         )
+
+        // A trail starts from where the market is now, so it can only ever ratchet from
+        // a real observation rather than from wherever the first check happens to land.
+        if kind == .trailingStop {
+            order.updateTrail(with: marketPrice)
+        }
+
+        modelContext.insert(order)
         try? modelContext.save()
         return nil
     }
@@ -247,9 +337,19 @@ enum LimitOrderService {
         let symbols = Set(open.map(\.symbol))
         let quotes = await (quoteSource ?? liveQuotes)(symbols)
 
+        // Trails move before anything is judged: a stop that has ratcheted up this tick
+        // must be evaluated against its new trigger, not the one it was placed with.
+        var trailMoved = false
+        for order in open where order.kind == .trailingStop {
+            if let price = quotes[order.symbol], order.updateTrail(with: price) {
+                trailMoved = true
+            }
+        }
+        if trailMoved { try? modelContext.save() }
+
         for order in open {
             guard let price = quotes[order.symbol], order.wouldFill(at: price) else { continue }
-            let outcome = await execute(order, manager: manager, modelContext: modelContext)
+            let outcome = await execute(order, at: price, manager: manager, modelContext: modelContext)
             await notify(order: order, outcome: outcome)
         }
     }
@@ -276,12 +376,20 @@ enum LimitOrderService {
     /// price crossed — filling at the limit avoids handing the user a better price than
     /// they could actually have got.
     @discardableResult
+    /// - Parameter marketPrice: the quote that triggered the order, if there was one.
     static func execute(
         _ order: LimitOrder,
+        at marketPrice: Double? = nil,
         manager: PortfolioManager? = nil,
         modelContext: ModelContext
     ) async -> FillOutcome {
         let manager = manager ?? .shared
+
+        // A limit fills at its limit; a stop becomes a market order the moment it
+        // triggers, so it fills at whatever the market is — which can be worse than the
+        // stop. Pretending otherwise would teach that a stop guarantees a price, and the
+        // gap between the two is exactly what a stop costs you.
+        let fillPrice = order.kind.isStop ? (marketPrice ?? order.limitPrice) : order.limitPrice
 
         do {
             if order.isBuy {
@@ -289,7 +397,7 @@ enum LimitOrderService {
                     symbol: order.symbol,
                     companyName: order.companyName,
                     quantity: order.quantity,
-                    buyPrice: order.limitPrice,
+                    buyPrice: fillPrice,
                     thesis: order.thesis,
                     modelContext: modelContext
                 )
@@ -297,9 +405,9 @@ enum LimitOrderService {
                 guard let holding = holding(for: order.symbol, modelContext: modelContext) else {
                     throw PortfolioError.insufficientShares(requested: order.quantity, available: 0)
                 }
-                // Sell at the limit rather than the stored mark, so the booked P&L
-                // reflects the price the order actually rested at.
-                holding.currentPrice = order.limitPrice
+                // Mark at the fill price so the booked P&L reflects what the order
+                // actually got, not the stale mark on the holding.
+                holding.currentPrice = fillPrice
                 try manager.sellStock(
                     holding,
                     quantity: order.quantity,
@@ -310,9 +418,9 @@ enum LimitOrderService {
 
             order.state = .filled
             order.filledAt = Date()
-            order.filledPrice = order.limitPrice
+            order.filledPrice = fillPrice
             try? modelContext.save()
-            return .filled(price: order.limitPrice)
+            return .filled(price: fillPrice)
 
         } catch {
             // Conditions can change between placing and filling — the cash may be spent

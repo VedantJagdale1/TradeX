@@ -133,6 +133,8 @@ private extension PortfolioView {
                 quantity: request.quantity,
                 limitPrice: limitPrice,
                 marketPrice: holding.currentPrice,
+                kind: request.kind,
+                trailPercent: request.trailPercent,
                 thesis: request.thesis,
                 timeInForce: request.timeInForce,
                 holding: holding,
@@ -157,9 +159,12 @@ private extension PortfolioView {
 
     func pendingOrderRow(for order: LimitOrder) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: order.isBuy ? "arrow.down.circle" : "arrow.up.circle")
+            Image(systemName: order.kind.isStop
+                  ? "shield.lefthalf.filled"
+                  : (order.isBuy ? "arrow.down.circle" : "arrow.up.circle"))
                 .font(.title3)
-                .foregroundStyle(order.isBuy ? Theme.buySide : Theme.sellSide)
+                .foregroundStyle(order.kind.isStop ? Theme.caution
+                                 : (order.isBuy ? Theme.buySide : Theme.sellSide))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(order.symbol)
@@ -171,7 +176,7 @@ private extension PortfolioView {
 
             Spacer()
 
-            Text("Resting")
+            Text(order.kind == .trailingStop ? "Trailing" : (order.kind.isStop ? "Stop" : "Resting"))
                 .font(.caption2)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)

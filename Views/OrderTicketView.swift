@@ -44,10 +44,15 @@ struct OrderTicket: Identifiable {
 struct OrderRequest {
     let quantity: Int
     let thesis: String
+
+    /// Nil means execute now at the market.
     let limitPrice: Double?
+
+    var kind: LimitOrder.Kind = .limit
+    var trailPercent: Double?
     var timeInForce: LimitOrder.TimeInForce = .day
 
-    var isLimit: Bool { limitPrice != nil }
+    var isResting: Bool { limitPrice != nil }
 }
 
 /// The order ticket.
@@ -63,8 +68,34 @@ struct OrderTicketView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var quantityString = "1"
-    @State private var isLimitOrder = false
+    /// Market plus the three resting kinds.
+    enum Style: String, CaseIterable, Identifiable {
+        case market, limit, stop, trailingStop
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .market: return "Market"
+            case .limit: return "Limit"
+            case .stop: return "Stop"
+            case .trailingStop: return "Trail"
+            }
+        }
+
+        var orderKind: LimitOrder.Kind? {
+            switch self {
+            case .market: return nil
+            case .limit: return .limit
+            case .stop: return .stop
+            case .trailingStop: return .trailingStop
+            }
+        }
+    }
+
+    @State private var style: Style = .market
     @State private var limitPriceString = ""
+    @State private var trailPercentString = "5"
     @State private var timeInForce: LimitOrder.TimeInForce = .day
     @State private var thesis = ""
     @State private var isSubmitting = false
@@ -76,14 +107,30 @@ struct OrderTicketView: View {
     private var isBuy: Bool { ticket.side == .buy }
     private var quantity: Int { Int(quantityString.trimmingCharacters(in: .whitespaces)) ?? 0 }
 
+    private var isLimitOrder: Bool { style != .market }
+
     private var limitPrice: Double {
         Double(limitPriceString.replacingOccurrences(of: ",", with: "")
             .trimmingCharacters(in: .whitespaces)) ?? 0
     }
 
-    /// A resting order is valued at its limit, since that is where it would fill.
+    private var trailPercent: Double {
+        Double(trailPercentString.trimmingCharacters(in: .whitespaces)) ?? 0
+    }
+
+    /// Where a trailing stop's trigger sits right now, given today's price.
+    private var trailingTrigger: Double {
+        isBuy ? ticket.price * (1 + trailPercent / 100)
+              : ticket.price * (1 - trailPercent / 100)
+    }
+
+    /// A resting order is valued at the price it would act on.
     private var effectivePrice: Double {
-        isLimitOrder ? limitPrice : ticket.price
+        switch style {
+        case .market: return ticket.price
+        case .limit, .stop: return limitPrice
+        case .trailingStop: return trailingTrigger
+        }
     }
 
     private var orderValue: Double { Double(quantity) * effectivePrice }
@@ -99,13 +146,32 @@ struct OrderTicketView: View {
     private var blockingReason: String? {
         guard quantity > 0 else { return "Enter how many shares to \(isBuy ? "buy" : "sell")." }
 
-        if isLimitOrder {
-            guard limitPrice > 0 else { return "Enter a limit price." }
+        switch style {
+        case .market:
+            break
 
+        case .limit:
+            guard limitPrice > 0 else { return "Enter a limit price." }
             // A marketable limit executes now, so it can only be placed in a session.
             if isMarketableLimit, !MarketSession.isOpen() {
                 return "That price executes immediately, so it can only be placed while the market is open (9:15am–3:30pm IST, Mon–Fri)."
             }
+
+        case .stop:
+            guard limitPrice > 0 else { return "Enter a stop price." }
+            // Stops sit on the opposite side to limits: a sell stop caps a loss below
+            // the market, a buy stop enters a breakout above it. On the wrong side it
+            // would trigger instantly and behave as a market order.
+            if isBuy, limitPrice <= ticket.price {
+                return "A buy stop must be above \(CurrencyFormatter.rupees(ticket.price)) — below it, it would trigger immediately."
+            }
+            if !isBuy, limitPrice >= ticket.price {
+                return "A stop-loss must be below \(CurrencyFormatter.rupees(ticket.price)) — above it, it would trigger immediately."
+            }
+
+        case .trailingStop:
+            guard trailPercent > 0 else { return "Enter how far the stop should trail." }
+            guard trailPercent < 100 else { return "A trail has to be less than 100%." }
         }
 
         if isBuy {
@@ -123,7 +189,7 @@ struct OrderTicketView: View {
     /// A buy at or above the market, or a sell at or below it, crosses the spread and
     /// executes now rather than resting.
     private var isMarketableLimit: Bool {
-        guard isLimitOrder, limitPrice > 0 else { return false }
+        guard style == .limit, limitPrice > 0 else { return false }
         return isBuy ? limitPrice >= ticket.price : limitPrice <= ticket.price
     }
 
@@ -140,14 +206,17 @@ struct OrderTicketView: View {
                 VStack(spacing: 20) {
                     priceHeader
 
-                    Picker("Order type", selection: $isLimitOrder) {
-                        Text("Market").tag(false)
-                        Text("Limit").tag(true)
+                    Picker("Order type", selection: $style) {
+                        ForEach(Style.allCases) { option in
+                            Text(option.label).tag(option)
+                        }
                     }
                     .pickerStyle(.segmented)
 
-                    if isLimitOrder {
-                        limitPriceSection
+                    switch style {
+                    case .market: EmptyView()
+                    case .limit, .stop: limitPriceSection
+                    case .trailingStop: trailSection
                     }
 
                     sizeSection
@@ -206,9 +275,40 @@ private extension OrderTicketView {
         .card()
     }
 
+    var trailSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(isBuy ? "Buy once it rises this far off the low" : "Sell if it drops this far from the high")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                TextField("5", text: $trailPercentString)
+                    .keyboardType(.decimalPad)
+                    .font(Theme.Typography.figure)
+                Text("%")
+                    .font(Theme.Typography.figure)
+                    .foregroundStyle(.secondary)
+            }
+
+            if trailPercent > 0, trailPercent < 100 {
+                Text("Triggers at \(CurrencyFormatter.rupees(trailingTrigger)) today, and \(isBuy ? "falls" : "rises") with the price.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("The trigger only ever moves in your favour — it follows the price \(isBuy ? "down" : "up") and never gives ground.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
     var limitPriceSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(isBuy ? "Buy when it falls to" : "Sell when it rises to")
+            Text(style == .stop
+                 ? (isBuy ? "Buy if it rises to" : "Sell if it falls to")
+                 : (isBuy ? "Buy when it falls to" : "Sell when it rises to"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -221,6 +321,16 @@ private extension OrderTicketView {
                 Text("\(Theme.sign(distance))\(distance, specifier: "%.2f")% from the current price")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            if style == .stop {
+                Label(
+                    "A stop becomes a market order when it triggers, so the fill can be worse than this price.",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.caption2)
+                .foregroundStyle(Theme.caution)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             if isMarketableLimit {
@@ -402,7 +512,7 @@ private extension OrderTicketView {
                     ProgressView().tint(.white)
                 } else {
                     Text(isLimitOrder && !isMarketableLimit
-                         ? "Place \(isBuy ? "Buy" : "Sell") Limit Order"
+                         ? "Place \(isBuy ? "Buy" : "Sell") \(style.label) Order"
                          : "\(isBuy ? "Buy" : "Sell") \(max(quantity, 0)) \(quantity == 1 ? "share" : "shares")")
                         .fontWeight(.semibold)
                 }
@@ -435,7 +545,9 @@ private extension OrderTicketView {
                 OrderRequest(
                     quantity: size,
                     thesis: reason,
-                    limitPrice: isLimitOrder ? limitPrice : nil,
+                    limitPrice: isLimitOrder ? effectivePrice : nil,
+                    kind: style.orderKind ?? .limit,
+                    trailPercent: style == .trailingStop ? trailPercent : nil,
                     timeInForce: timeInForce
                 )
             )

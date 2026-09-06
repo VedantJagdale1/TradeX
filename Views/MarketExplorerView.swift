@@ -153,6 +153,8 @@ private extension MarketExplorerView {
                 quantity: request.quantity,
                 limitPrice: limitPrice,
                 marketPrice: ticket.price,
+                kind: request.kind,
+                trailPercent: request.trailPercent,
                 thesis: request.thesis,
                 timeInForce: request.timeInForce,
                 holding: nil,
