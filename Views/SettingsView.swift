@@ -14,14 +14,47 @@ struct SettingsView: View {
     @Query private var alerts: [PriceAlert]
     @Query private var watchlist: [WatchlistItem]
 
-    var body: some View {
-        @Bindable var lock = lock
+    @State private var isVerifying = false
 
+    /// Routes the switch through enable/disable rather than binding straight to the
+    /// stored flag, so turning it on has to pass a check first. A failed check leaves
+    /// the flag untouched and the switch springs back on its own.
+    private var lockBinding: Binding<Bool> {
+        Binding(
+            get: { lock.isEnabled },
+            set: { wantsLock in
+                guard !isVerifying else { return }
+                if wantsLock {
+                    isVerifying = true
+                    Task {
+                        await lock.enable()
+                        isVerifying = false
+                    }
+                } else {
+                    lock.disable()
+                }
+            }
+        )
+    }
+
+    var body: some View {
         List {
             Section {
                 if lock.isAvailable {
-                    Toggle(isOn: $lock.isEnabled) {
-                        Label("Require \(lock.biometryDescription)", systemImage: "lock.fill")
+                    Toggle(isOn: lockBinding) {
+                        HStack {
+                            Label("Require \(lock.biometryDescription)", systemImage: "lock.fill")
+                            if isVerifying {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+
+                    if let reason = lock.lastFailureReason {
+                        Text(reason)
+                            .font(.caption)
+                            .foregroundStyle(Theme.loss)
                     }
                 } else {
                     Label("No passcode or biometrics set up on this device", systemImage: "lock.slash")
@@ -31,7 +64,7 @@ struct SettingsView: View {
             } header: {
                 Text("Privacy")
             } footer: {
-                Text("Asks on launch and whenever you return to the app. Falls back to your passcode if a scan fails.")
+                Text("You'll be asked to confirm before it's switched on, so a lock you can't clear never takes effect. After that it asks on launch and whenever you return to the app, falling back to your passcode if a scan fails.")
             }
 
             Section("Your Data") {
