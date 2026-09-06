@@ -92,17 +92,18 @@ struct AIAssistantView: View {
                 .background(Color(.systemBackground))
             }
             
-            inputInteractiveBar
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
+            // Sits in the layout above the input rather than as a top safeAreaInset,
+            // which competes with the navigation bar and swallows its title.
+            //
             // Visible rather than only in the system prompt: the model discusses real
             // tickers, and this is the claim the app must not be seen to make.
             Text("Simulated trading. Analysis only — not investment advice.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .background(.bar)
+                .padding(.top, 6)
+
+            inputInteractiveBar
         }
         .navigationTitle("AI Assistant")
         .toolbar {

@@ -24,8 +24,17 @@ class GroqService {
         return value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    
-    private let model = "llama-3.3-70b-versatile"
+    /// Groq retires models without notice — `llama-3.3-70b-versatile` was withdrawn and
+    /// every request started failing — so this is overridable from Secrets.xcconfig
+    /// (GROQ_MODEL) and only falls back to a default.
+    private var model: String {
+        let configured = (Bundle.main.object(forInfoDictionaryKey: "GroqModel") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let configured, !configured.isEmpty else { return Self.defaultModel }
+        return configured
+    }
+
+    static let defaultModel = "openai/gpt-oss-120b"
 
     
     func generateInsight(userPrompt: String, portfolioContext: String) async throws -> String {
@@ -117,6 +126,12 @@ class GroqService {
             return "I processed your query but couldn't parse the final answer correctly."
         }
 
-        return content
+        // Reasoning models can spend their whole budget thinking and return an empty
+        // message, which would otherwise render as a blank reply bubble.
+        let reply = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !reply.isEmpty else {
+            return "The model returned an empty response. Try asking again, or a more specific question."
+        }
+        return reply
     }
 }

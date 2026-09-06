@@ -8,6 +8,10 @@
 	<key>GroqAPIKey</key>
 	<string>$(GROQ_API_KEY)</string>
 
+	<!-- Optional. Empty falls back to GroqService.defaultModel. -->
+	<key>GroqModel</key>
+	<string>$(GROQ_MODEL)</string>
+
 	<!-- Background price checks for alerts. Both keys are required: the mode grants
 	     the capability, the identifier list authorises this specific task id. -->
 	<!-- Required before LocalAuthentication may evaluate a biometric policy. -->
