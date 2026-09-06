@@ -140,6 +140,33 @@ class MarketAPIService {
         return IndexQuote(price: price, previousClose: previousClose)
     }
 
+    /// Splits and bonus issues reported for a symbol.
+    ///
+    /// Not cached: this is checked at most once a day and a stale answer here silently
+    /// corrupts a cost basis, which is worse than an extra request.
+    func fetchSplits(symbol: String, range: String = "2y") async throws -> [SplitEvent] {
+        let yahooSymbol = symbol.hasSuffix(".NS") ? symbol : "\(symbol).NS"
+        let urlString = "https://query1.finance.yahoo.com/v8/finance/chart/\(yahooSymbol)?range=\(range)&interval=1d&events=split"
+
+        guard let url = URL(string: urlString) else { throw NetworkError.invalidURL }
+
+        let data = try await get(url)
+        let result = try JSONDecoder().decode(YahooChartResponse.self, from: data)
+
+        guard let splits = result.chart.result?.first?.events?.splits else { return [] }
+
+        return splits.values
+            .compactMap { raw -> SplitEvent? in
+                guard raw.numerator > 0, raw.denominator > 0 else { return nil }
+                return SplitEvent(
+                    date: Date(timeIntervalSince1970: TimeInterval(raw.date)),
+                    numerator: raw.numerator,
+                    denominator: raw.denominator
+                )
+            }
+            .sorted { $0.date < $1.date }
+    }
+
     /// A quote for one stock, shared through the cache.
     ///
     /// Pass `maxAge: 0` for a user-initiated refresh that must hit the network.
@@ -182,6 +209,32 @@ struct YahooChartResult: Decodable {
     let meta: YahooChartMeta
     let timestamp: [Int]?
     let indicators: YahooIndicators?
+    let events: YahooEvents?
+}
+
+struct YahooEvents: Decodable {
+    let splits: [String: YahooSplit]?
+}
+
+struct YahooSplit: Decodable {
+    let date: Int
+    let numerator: Double
+    let denominator: Double
+}
+
+/// A split or bonus issue: `numerator` new shares for every `denominator` held.
+struct SplitEvent: Sendable, Equatable {
+    let date: Date
+    let numerator: Double
+    let denominator: Double
+
+    /// How many shares each existing share becomes. Above 1 for a split or bonus,
+    /// below 1 for a consolidation.
+    var shareMultiplier: Double { numerator / denominator }
+
+    var ratioDescription: String {
+        "\(Int(numerator)):\(Int(denominator))"
+    }
 }
 
 struct YahooChartMeta: Decodable {

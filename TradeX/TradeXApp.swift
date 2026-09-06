@@ -29,7 +29,8 @@ struct TradeXApp: App {
                 WatchlistItem.self,
                 PriceAlert.self,
                 LimitOrder.self,
-                StoredChatMessage.self
+                StoredChatMessage.self,
+                CorporateAction.self
             )
         } catch {
             fatalError("Could not open the TradeX data store: \(error)")

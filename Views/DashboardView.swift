@@ -193,6 +193,11 @@ struct DashboardView: View {
             await PortfolioManager.shared.refreshPrices(modelContext: modelContext)
             // Marked after the refresh so the day's value reflects current prices.
             await PortfolioManager.shared.recordDailySnapshot(modelContext: modelContext)
+            // Before anything is priced or alerted on: a split restates the position,
+            // and every number downstream depends on it being right.
+            if CorporateActionService.shouldScan() {
+                await CorporateActionService.apply(modelContext: modelContext)
+            }
             await PriceAlertService.checkAll(modelContext: modelContext)
             await LimitOrderService.checkAll(modelContext: modelContext)
         }
