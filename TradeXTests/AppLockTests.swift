@@ -95,8 +95,9 @@ struct AppLockTests {
         off.lock()
         #expect(off.isLocked == false)
 
+        // Starts locked because the setting is on; backgrounding keeps it that way.
         let (on, _) = makeLock(startsEnabled: true) { _ in .success(true) }
-        on.isLocked == true ? () : on.lock()
+        on.lock()
         #expect(on.isLocked == true)
     }
 

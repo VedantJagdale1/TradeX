@@ -93,16 +93,16 @@ struct SectorAllocationTests {
     }
 
     @Test("Holdings in one sector are summed together")
-    func sectorsAggregate() {
+    func sectorsAggregate() throws {
         let breakdown = SectorAllocation.breakdown(of: [
             holding("TCS", quantity: 10, price: 100),
             holding("INFY", quantity: 10, price: 100),
             holding("RELIANCE", quantity: 10, price: 100),
         ])
 
-        let it = try? #require(breakdown.first { $0.sector == .informationTechnology })
-        #expect(it?.value == 2_000)
-        #expect(it?.symbols == ["INFY", "TCS"])
+        let it = try #require(breakdown.first { $0.sector == .informationTechnology })
+        #expect(it.value == 2_000)
+        #expect(it.symbols == ["INFY", "TCS"])
         #expect(breakdown.count == 2)
     }
 
