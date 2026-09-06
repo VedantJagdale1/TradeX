@@ -10,6 +10,10 @@
 
 	<!-- Background price checks for alerts. Both keys are required: the mode grants
 	     the capability, the identifier list authorises this specific task id. -->
+	<!-- Required before LocalAuthentication may evaluate a biometric policy. -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>TradeX uses Face ID to keep your portfolio private.</string>
+
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

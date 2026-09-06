@@ -67,6 +67,17 @@ class MarketAPIService {
     }
 
     private func chartSeries(yahooSymbol: String, range: String) async throws -> ChartSeries {
+        // Flipping between ranges and back re-requests the same series; charts are also
+        // the largest payloads the app fetches, so they hold longer than a quote.
+        try await QuoteCache.shared.series(
+            for: "\(yahooSymbol)|\(range)",
+            maxAge: QuoteCache.historyMaxAge
+        ) {
+            try await self.chartSeriesUncached(yahooSymbol: yahooSymbol, range: range)
+        }
+    }
+
+    private func chartSeriesUncached(yahooSymbol: String, range: String) async throws -> ChartSeries {
         let interval = (range == "1d") ? "15m" : "1d"
         
         let urlString = "https://query1.finance.yahoo.com/v8/finance/chart/\(yahooSymbol)?range=\(range)&interval=\(interval)"
@@ -187,7 +198,7 @@ struct YahooQuoteArray: Decodable {
 }
 
 
-struct ChartPoint: Identifiable {
+struct ChartPoint: Identifiable, Sendable {
     let id = UUID()
     let date: Date
     let price: Double
@@ -198,7 +209,7 @@ struct ChartPoint: Identifiable {
 ///
 /// Index levels are point values, not rupee amounts, so they are rendered without a
 /// currency symbol.
-struct IndexQuote {
+struct IndexQuote: Sendable {
     let price: Double
     let previousClose: Double
 
@@ -214,7 +225,7 @@ struct IndexQuote {
 
 
 /// A price series plus the live quote that came back with it.
-struct ChartSeries {
+struct ChartSeries: Sendable {
     let points: [ChartPoint]
     let latestPrice: Double?
     let previousClose: Double?
@@ -237,6 +248,57 @@ enum MarketSession {
     private static let openMinutes = 9 * 60 + 15   // 09:15 IST
     private static let closeMinutes = 15 * 60 + 30 // 15:30 IST
 
+    /// NSE trading holidays, as yyyy-MM-dd in IST.
+    ///
+    /// A hardcoded list rather than a feed: the exchange publishes these annually and
+    /// they rarely move, and a wrong holiday only ever means an order rests a day longer
+    /// than it should. Needs extending each year — a date past the end of the list is
+    /// treated as a normal session.
+    static let holidays: Set<String> = [
+        // 2026
+        "2026-01-26", // Republic Day
+        "2026-03-04", // Holi
+        "2026-03-21", // Id-Ul-Fitr
+        "2026-04-01", // Mahavir Jayanti
+        "2026-04-03", // Good Friday
+        "2026-04-14", // Dr. Ambedkar Jayanti
+        "2026-05-01", // Maharashtra Day
+        "2026-05-27", // Bakri Id
+        "2026-08-15", // Independence Day
+        "2026-08-26", // Ganesh Chaturthi
+        "2026-10-02", // Gandhi Jayanti
+        "2026-10-21", // Diwali Laxmi Pujan
+        "2026-11-05", // Guru Nanak Jayanti
+        "2026-12-25", // Christmas
+        // 2027
+        "2027-01-26",
+        "2027-03-25",
+        "2027-08-15",
+        "2027-10-02",
+        "2027-11-09",
+        "2027-12-25",
+    ]
+
+    private static let holidayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(identifier: "Asia/Kolkata") ?? .current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
+
+    static func isHoliday(_ date: Date) -> Bool {
+        holidays.contains(holidayFormatter.string(from: date))
+    }
+
+    /// A weekday the exchange actually trades.
+    static func isTradingDay(_ date: Date) -> Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = exchangeTimeZone
+        let weekday = calendar.component(.weekday, from: date)
+        return (2...6).contains(weekday) && !isHoliday(date)
+    }
+
     static func isOpen(at date: Date = Date()) -> Bool {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = exchangeTimeZone
@@ -245,6 +307,7 @@ enum MarketSession {
 
         // Sunday is 1, so Monday...Friday is 2...6.
         guard let weekday = parts.weekday, (2...6).contains(weekday),
+              !isHoliday(date),
               let hour = parts.hour, let minute = parts.minute
         else { return false }
 
@@ -254,8 +317,7 @@ enum MarketSession {
 
     /// The next close after `date` — when a day order stops being live.
     ///
-    /// Exchange holidays are not modelled, so a day order placed before a holiday
-    /// expires at that day's nominal close rather than the next real session's.
+    /// Weekends and the published holiday list are both skipped.
     static func nextClose(after date: Date = Date()) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = exchangeTimeZone
@@ -271,9 +333,12 @@ enum MarketSession {
             candidate = calendar.date(byAdding: .day, value: 1, to: candidate) ?? candidate
         }
 
-        // Roll past the weekend.
-        while !(2...6).contains(calendar.component(.weekday, from: candidate)) {
+        // Roll past weekends and holidays alike — a day order placed before Diwali
+        // should expire at the next real session's close, not on the holiday itself.
+        var guardRail = 0
+        while !isTradingDay(candidate), guardRail < 30 {
             candidate = calendar.date(byAdding: .day, value: 1, to: candidate) ?? candidate
+            guardRail += 1
         }
 
         return candidate
@@ -294,6 +359,9 @@ actor QuoteCache {
     /// request per symbol, short enough that prices still feel live.
     static let defaultMaxAge: TimeInterval = 30
 
+    /// Price history changes far more slowly than a quote, and costs more to fetch.
+    static let historyMaxAge: TimeInterval = 300
+
     /// How long to stop asking after being rate-limited.
     private static let backoffDuration: TimeInterval = 120
 
@@ -304,10 +372,12 @@ actor QuoteCache {
 
     private var prices: [String: Entry<Double>] = [:]
     private var indexQuotes: [String: Entry<IndexQuote>] = [:]
+    private var histories: [String: Entry<ChartSeries>] = [:]
 
     /// In-flight fetches, so concurrent callers for one symbol share a single request.
     private var priceTasks: [String: Task<Double, Error>] = [:]
     private var indexTasks: [String: Task<IndexQuote, Error>] = [:]
+    private var historyTasks: [String: Task<ChartSeries, Error>] = [:]
 
     private var backoffUntil: Date?
 
@@ -379,6 +449,40 @@ actor QuoteCache {
         }
     }
 
+    /// Price history, keyed by symbol and range.
+    func series(
+        for key: String,
+        maxAge: TimeInterval,
+        fetch: @escaping @Sendable () async throws -> ChartSeries
+    ) async throws -> ChartSeries {
+        if let entry = histories[key], Date().timeIntervalSince(entry.fetchedAt) < maxAge {
+            return entry.value
+        }
+
+        if let stale = try rateLimitFallback(histories[key]?.value) {
+            return stale
+        }
+
+        if let existing = historyTasks[key] {
+            return try await existing.value
+        }
+
+        let task = Task { try await fetch() }
+        historyTasks[key] = task
+
+        do {
+            let value = try await task.value
+            historyTasks[key] = nil
+            histories[key] = Entry(value: value, fetchedAt: Date())
+            return value
+        } catch {
+            historyTasks[key] = nil
+            noteFailure(error)
+            if let stale = histories[key]?.value { return stale }
+            throw error
+        }
+    }
+
     /// While backed off, serve what we have and otherwise fail fast — continuing to ask
     /// only extends the limit.
     private func rateLimitFallback<Value>(_ stale: Value?) throws -> Value? {
@@ -403,6 +507,7 @@ actor QuoteCache {
     func invalidate() {
         prices.removeAll()
         indexQuotes.removeAll()
+        histories.removeAll()
         backoffUntil = nil
     }
 }

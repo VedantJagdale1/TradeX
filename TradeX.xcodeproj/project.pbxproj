@@ -39,6 +39,11 @@
 		8EBB04012FFFFFFF00AB9A5C /* PortfolioManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03012FFFFFFF00AB9A5C /* PortfolioManagerTests.swift */; };
 		8EBB04022FFFFFFF00AB9A5C /* LimitOrderServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03022FFFFFFF00AB9A5C /* LimitOrderServiceTests.swift */; };
 		8EBB04032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift */; };
+		8EBB06012FFFFFFF00AB9A5C /* AppLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05012FFFFFFF00AB9A5C /* AppLock.swift */; };
+		8EBB06022FFFFFFF00AB9A5C /* StoredChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05022FFFFFFF00AB9A5C /* StoredChatMessage.swift */; };
+		8EBB06032FFFFFFF00AB9A5C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05032FFFFFFF00AB9A5C /* SettingsView.swift */; };
+		8EBB06042FFFFFFF00AB9A5C /* Sector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05042FFFFFFF00AB9A5C /* Sector.swift */; };
+		8EBB04042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -88,6 +93,11 @@
 		8EBB03012FFFFFFF00AB9A5C /* PortfolioManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioManagerTests.swift; sourceTree = "<group>"; };
 		8EBB03022FFFFFFF00AB9A5C /* LimitOrderServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitOrderServiceTests.swift; sourceTree = "<group>"; };
 		8EBB03032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceAlertServiceTests.swift; sourceTree = "<group>"; };
+		8EBB05012FFFFFFF00AB9A5C /* AppLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLock.swift; sourceTree = "<group>"; };
+		8EBB05022FFFFFFF00AB9A5C /* StoredChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredChatMessage.swift; sourceTree = "<group>"; };
+		8EBB05032FFFFFFF00AB9A5C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		8EBB05042FFFFFFF00AB9A5C /* Sector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sector.swift; sourceTree = "<group>"; };
+		8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectorAndHolidayTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -151,6 +161,7 @@
 		8EBF52222FF5AA5100AB9A5C /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				8EBB05032FFFFFFF00AB9A5C /* SettingsView.swift */,
 				8EAA00112FFFFFFF00AB9A5C /* AlertsView.swift */,
 				8EAA000B2FFFFFFF00AB9A5C /* OrderTicketView.swift */,
 				8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */,
@@ -168,6 +179,9 @@
 		8EBF52242FF5AA5100AB9A5C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				8EBB05042FFFFFFF00AB9A5C /* Sector.swift */,
+				8EBB05022FFFFFFF00AB9A5C /* StoredChatMessage.swift */,
+				8EBB05012FFFFFFF00AB9A5C /* AppLock.swift */,
 				8EAA00152FFFFFFF00AB9A5C /* PerformanceReconstructor.swift */,
 				8EAA00132FFFFFFF00AB9A5C /* LimitOrder.swift */,
 				8EAA000F2FFFFFFF00AB9A5C /* PriceAlert.swift */,
@@ -195,6 +209,7 @@
 		8EBB00032FFFFFFF00AB9A5C /* TradeXTests */ = {
 			isa = PBXGroup;
 			children = (
+				8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */,
 				8EBB03032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift */,
 				8EBB03022FFFFFFF00AB9A5C /* LimitOrderServiceTests.swift */,
 				8EBB03012FFFFFFF00AB9A5C /* PortfolioManagerTests.swift */,
@@ -313,6 +328,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBF523A2FF9099700AB9A5C /* MarketAPIService.swift in Sources */,
+				8EBB06042FFFFFFF00AB9A5C /* Sector.swift in Sources */,
+				8EBB06032FFFFFFF00AB9A5C /* SettingsView.swift in Sources */,
+				8EBB06022FFFFFFF00AB9A5C /* StoredChatMessage.swift in Sources */,
+				8EBB06012FFFFFFF00AB9A5C /* AppLock.swift in Sources */,
 				8EAA00162FFFFFFF00AB9A5C /* PerformanceReconstructor.swift in Sources */,
 				8EAA00142FFFFFFF00AB9A5C /* LimitOrder.swift in Sources */,
 				8EAA00122FFFFFFF00AB9A5C /* AlertsView.swift in Sources */,
@@ -343,6 +362,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBB02002FFFFFFF00AB9A5C /* MarketSessionTests.swift in Sources */,
+				8EBB04042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift in Sources */,
 				8EBB04032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift in Sources */,
 				8EBB04022FFFFFFF00AB9A5C /* LimitOrderServiceTests.swift in Sources */,
 				8EBB04012FFFFFFF00AB9A5C /* PortfolioManagerTests.swift in Sources */,

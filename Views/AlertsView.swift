@@ -129,7 +129,8 @@ private extension AlertsView {
     func checkNow() async {
         isCheckingNow = true
         defer { isCheckingNow = false }
-        await PriceAlertService.checkAll(modelContext: modelContext)
+        // Tapping refresh should ask the market, not re-read a cached quote.
+        await PriceAlertService.checkAll(modelContext: modelContext, quoteMaxAge: 0)
     }
 }
 

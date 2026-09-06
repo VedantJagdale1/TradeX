@@ -15,10 +15,21 @@ struct AIAssistantView: View {
     @Query private var settings: [UserSettings]
     @Query(sort: \Trade.timestamp, order: .reverse) private var trades: [Trade]
     
+    @Query(sort: \StoredChatMessage.timestamp) private var stored: [StoredChatMessage]
+
     @State private var messageText = ""
-    @State private var conversation: [ChatMessage] = [
-        ChatMessage(text: "Hello! I am your TradeX AI portfolio strategist. Ask me to analyze your holdings, break down equity allocations, or evaluate cash margins.", isUser: false)
-    ]
+
+    private static let greeting = "Hello! I am your TradeX AI portfolio strategist. Ask me to analyze your holdings, break down equity allocations, or evaluate cash margins."
+
+    /// The greeting isn't stored — it's a placeholder for an empty transcript, not a turn.
+    private var conversation: [ChatMessage] {
+        guard !stored.isEmpty else {
+            return [ChatMessage(text: Self.greeting, isUser: false)]
+        }
+        return stored.map {
+            ChatMessage(id: $0.id, text: $0.text, isUser: $0.isUser, timestamp: $0.timestamp)
+        }
+    }
     
     @FocusState private var isInputFocused: Bool
     
@@ -83,13 +94,52 @@ struct AIAssistantView: View {
             
             inputInteractiveBar
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            // Visible rather than only in the system prompt: the model discusses real
+            // tickers, and this is the claim the app must not be seen to make.
+            Text("Simulated trading. Analysis only — not investment advice.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(.bar)
+        }
         .navigationTitle("AI Assistant")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) {
+                    clearConversation()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .accessibilityLabel("Clear conversation")
+                .disabled(stored.isEmpty)
+            }
+        }
     }
 }
 
 
 private extension AIAssistantView {
     
+    @discardableResult
+    func append(text: String, isUser: Bool) -> StoredChatMessage {
+        let message = StoredChatMessage(text: text, isUser: isUser)
+        modelContext.insert(message)
+        try? modelContext.save()
+        return message
+    }
+
+    func remove(_ message: StoredChatMessage) {
+        modelContext.delete(message)
+        try? modelContext.save()
+    }
+
+    func clearConversation() {
+        for message in stored { modelContext.delete(message) }
+        try? modelContext.save()
+    }
+
     func chatBubble(for message: ChatMessage) -> some View {
         HStack {
             if message.isUser { Spacer() }
@@ -147,7 +197,7 @@ private extension AIAssistantView {
         let userQuery = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !userQuery.isEmpty else { return }
         
-        conversation.append(ChatMessage(text: userQuery, isUser: true))
+        append(text: userQuery, isUser: true)
         messageText = ""
         
         let cashBalance = settings.first?.availableCash ?? 274500.00
@@ -203,12 +253,12 @@ private extension AIAssistantView {
             \(tradeHistoryDetails.isEmpty ? "No trades recorded yet." : tradeHistoryDetails)
             """
         
-        Task {
-            let thinkingMessage = ChatMessage(text: "TradeX AI is analyzing market matrices...", isUser: false)
-            await MainActor.run {
-                conversation.append(thinkingMessage)
-            }
-            
+        Task { @MainActor in
+            // The placeholder is a stored row like any other, so it is removed by its own
+            // identity rather than by position — sending a second message while the first
+            // was in flight used to strand it in the transcript.
+            let placeholder = append(text: "TradeX AI is analyzing market matrices...", isUser: false)
+
             var targetReply = ""
             do {
                 targetReply = try await GroqService.shared.generateInsight(
@@ -216,20 +266,11 @@ private extension AIAssistantView {
                     portfolioContext: completePortfolioContext
                 )
             } catch {
-                print("🚨 GROQ DIAGNOSTIC ERROR DETECTED: \(error.localizedDescription)")
                 targetReply = "Groq Error: \(error.localizedDescription)"
             }
-            
-            let finalReply = targetReply
-            await MainActor.run {
-                // Removed by identity. Matching on `last` left the placeholder stranded
-                // in the transcript whenever a second message was sent while the first
-                // was still in flight — easy to hit now that a review takes a while.
-                if let index = conversation.firstIndex(where: { $0.id == thinkingMessage.id }) {
-                    conversation.remove(at: index)
-                }
-                conversation.append(ChatMessage(text: finalReply, isUser: false))
-            }
+
+            remove(placeholder)
+            append(text: targetReply, isUser: false)
         }
     }
 }

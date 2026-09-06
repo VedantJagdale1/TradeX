@@ -108,6 +108,10 @@ struct DashboardView: View {
                 }
                 
                 
+                if !holdings.isEmpty {
+                    sectorCard
+                }
+
                 VStack(alignment: .leading, spacing: 12) {
                     Text("My Positions")
                         .font(.title3)
@@ -163,6 +167,14 @@ struct DashboardView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
+                    SettingsView()
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
                     AlertsView()
                 } label: {
                     Label("Price Alerts", systemImage: "bell")
@@ -193,6 +205,74 @@ struct DashboardView: View {
                 )
             }
         }
+    }
+}
+
+
+private extension DashboardView {
+
+    var sectorAllocations: [SectorAllocation] {
+        SectorAllocation.breakdown(of: holdings)
+    }
+
+    /// Concentration by sector, which is what actually shows risk — a by-stock split can
+    /// look diversified while sitting almost entirely in one industry.
+    var sectorCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Sector Exposure")
+                    .font(.headline)
+                Spacer()
+                if let largest = sectorAllocations.first, largest.sector != .unclassified {
+                    let share = largest.share(of: totalStockValue)
+                    Text("\(largest.sector.rawValue) \(share, specifier: "%.0f")%")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(share > 50 ? Theme.caution : .secondary)
+                }
+            }
+
+            ForEach(sectorAllocations) { allocation in
+                let share = allocation.share(of: totalStockValue)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(allocation.sector.rawValue)
+                            .font(.subheadline)
+                            .foregroundStyle(allocation.sector == .unclassified ? .secondary : .primary)
+                        Spacer()
+                        Text("\(share, specifier: "%.1f")%")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    GeometryReader { geometry in
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(allocation.sector == .unclassified ? Color.secondary.opacity(0.35) : Theme.accent)
+                            .frame(width: max(2, geometry.size.width * share / 100))
+                    }
+                    .frame(height: 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(Color.secondary.opacity(0.15))
+                    )
+
+                    Text(allocation.symbols.joined(separator: ", "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            if sectorAllocations.contains(where: { $0.sector == .unclassified }) {
+                Text("Unclassified holdings aren't mapped to a sector yet — the classification covers most large and mid caps.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
     }
 }
 

@@ -66,6 +66,7 @@ final class PortfolioManager {
                 modelContext.delete(duplicate)
             }
             if rows.count > 1 { save(modelContext) }
+            backfillOpeningDeposit(modelContext: modelContext)
             return canonical
         }
 
@@ -80,6 +81,26 @@ final class PortfolioManager {
         )
         save(modelContext)
         return created
+    }
+
+    /// Gives accounts created before cash was logged an opening deposit.
+    ///
+    /// Without a record of capital going in, returns are measured against an assumed
+    /// figure. The starting balance is the best available guess — an edit made before
+    /// logging existed is unrecoverable — but making it a real row means every later
+    /// deposit accumulates on top of something rather than being the only entry.
+    private func backfillOpeningDeposit(modelContext: ModelContext) {
+        let existing = (try? modelContext.fetch(FetchDescriptor<CashAdjustment>())) ?? []
+        guard existing.isEmpty else { return }
+
+        modelContext.insert(
+            CashAdjustment(
+                amount: Self.defaultStartingCash,
+                balanceAfter: Self.defaultStartingCash,
+                note: "Opening balance"
+            )
+        )
+        save(modelContext)
     }
 
     /// Records a manual change to the cash balance and applies it.

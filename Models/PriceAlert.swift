@@ -95,6 +95,7 @@ enum PriceAlertService {
     static func checkAll(
         modelContext: ModelContext,
         now: Date = Date(),
+        quoteMaxAge: TimeInterval = QuoteCache.defaultMaxAge,
         quoteSource: ((Set<String>) async -> [String: Double])? = nil
     ) async -> [PriceAlert] {
         let armed = ((try? modelContext.fetch(FetchDescriptor<PriceAlert>())) ?? [])
@@ -102,7 +103,12 @@ enum PriceAlertService {
         guard !armed.isEmpty else { return [] }
 
         let symbols = Set(armed.map(\.symbol))
-        let quotes = await (quoteSource ?? liveQuotes)(symbols)
+        let quotes: [String: Double]
+        if let quoteSource {
+            quotes = await quoteSource(symbols)
+        } else {
+            quotes = await liveQuotes(symbols, maxAge: quoteMaxAge)
+        }
 
         var fired: [PriceAlert] = []
         for alert in armed {
@@ -124,11 +130,11 @@ enum PriceAlertService {
         return fired
     }
 
-    private static func liveQuotes(_ symbols: Set<String>) async -> [String: Double] {
+    private static func liveQuotes(_ symbols: Set<String>, maxAge: TimeInterval) async -> [String: Double] {
         await withTaskGroup(of: (String, Double?).self) { group in
             for symbol in symbols {
                 group.addTask {
-                    (symbol, try? await MarketAPIService.shared.fetchStockPrice(symbol: symbol))
+                    (symbol, try? await MarketAPIService.shared.fetchStockPrice(symbol: symbol, maxAge: maxAge))
                 }
             }
             var collected: [String: Double] = [:]

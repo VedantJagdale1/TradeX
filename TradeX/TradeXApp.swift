@@ -12,6 +12,7 @@ import BackgroundTasks
 @main
 struct TradeXApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    @State private var lock = AppLock.shared
 
     /// Held explicitly rather than created by `.modelContainer(for:)` so the background
     /// refresh task — which runs outside any view — can open its own context.
@@ -27,7 +28,8 @@ struct TradeXApp: App {
                 PortfolioSnapshot.self,
                 WatchlistItem.self,
                 PriceAlert.self,
-                LimitOrder.self
+                LimitOrder.self,
+                StoredChatMessage.self
             )
         } catch {
             fatalError("Could not open the TradeX data store: \(error)")
@@ -37,6 +39,14 @@ struct TradeXApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .overlay {
+                    if lock.isLocked {
+                        LockScreen(lock: lock)
+                            .transition(.opacity)
+                    }
+                }
+                .animation(Theme.Motion.layout, value: lock.isLocked)
+                .environment(lock)
         }
         .modelContainer(container)
         .backgroundTask(.appRefresh(PriceAlertService.backgroundTaskID)) {
@@ -48,6 +58,8 @@ struct TradeXApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
+                // Re-lock on the way out, so returning to the app asks again.
+                lock.lock()
                 Task { await scheduleAlertCheck() }
             }
         }
