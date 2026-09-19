@@ -350,6 +350,22 @@ struct CorporateActionTests {
         #expect(holding.quantity == 5)   // left as found
     }
 
+    @Test("A malformed ratio is ignored rather than trapping")
+    func malformedRatioIsIgnored() async throws {
+        let book = try Book()
+        book.openedPosition("X", quantity: 10, cost: 100, daysAgo: 90)
+        let holding = book.hold("X", quantity: 10, cost: 100, mark: 100)
+
+        // A zero denominator makes the multiplier infinite, which clears a naive
+        // `> 0` check and then traps converting back to a whole share count.
+        let bogus = SplitEvent(date: Date(timeIntervalSinceNow: -30 * 86_400),
+                               numerator: 2, denominator: 0)
+        let applied = await book.scan(["X": [bogus]])
+
+        #expect(applied.isEmpty)
+        #expect(holding.quantity == 10)
+    }
+
     @Test("The scan runs once a day, not on every appearance")
     func scanIsThrottledDaily() {
         let suite = UserDefaults(suiteName: "CAthrottle.\(UUID().uuidString)")!

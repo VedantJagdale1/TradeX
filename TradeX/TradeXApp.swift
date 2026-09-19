@@ -18,28 +18,56 @@ struct TradeXApp: App {
     /// refresh task — which runs outside any view — can open its own context.
     private let container: ModelContainer
 
+    /// Set when the on-disk store could not be opened, so the app can say so instead of
+    /// silently presenting an empty portfolio.
+    private let storeFailureReason: String?
+
+    private static let schema = Schema([
+        PortfolioHolding.self,
+        UserSettings.self,
+        Trade.self,
+        CashAdjustment.self,
+        PortfolioSnapshot.self,
+        WatchlistItem.self,
+        PriceAlert.self,
+        LimitOrder.self,
+        StoredChatMessage.self,
+        CorporateAction.self,
+    ])
+
     init() {
         do {
-            container = try ModelContainer(
-                for: PortfolioHolding.self,
-                UserSettings.self,
-                Trade.self,
-                CashAdjustment.self,
-                PortfolioSnapshot.self,
-                WatchlistItem.self,
-                PriceAlert.self,
-                LimitOrder.self,
-                StoredChatMessage.self,
-                CorporateAction.self
-            )
+            container = try ModelContainer(for: Self.schema)
+            storeFailureReason = nil
         } catch {
-            fatalError("Could not open the TradeX data store: \(error)")
+            // Crashing here would brick the app with no way back in: the store can only
+            // be cleared by deleting the app, which takes the portfolio with it. Models
+            // have been added repeatedly, so a migration that fails has to stay
+            // recoverable. Running in memory keeps the app openable and honest about it.
+            storeFailureReason = error.localizedDescription
+            container = try! ModelContainer(
+                for: Self.schema,
+                configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            )
         }
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .safeAreaInset(edge: .bottom) {
+                    if let storeFailureReason {
+                        Label(
+                            "Your saved data couldn't be opened, so this session won't be kept. \(storeFailureReason)",
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(.white)
+                        .padding(10)
+                        .frame(maxWidth: .infinity)
+                        .background(Theme.loss)
+                    }
+                }
                 .overlay {
                     if lock.isLocked {
                         LockScreen(lock: lock)

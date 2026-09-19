@@ -192,7 +192,11 @@ enum CorporateActionService {
     /// when the new share count has to be rounded.
     static func adjust(_ holding: PortfolioHolding, for split: SplitEvent) -> CorporateAction? {
         let multiplier = split.shareMultiplier
-        guard multiplier > 0, multiplier != 1, holding.quantity > 0 else { return nil }
+        // `isFinite` matters as much as the rest: a zero denominator makes the multiplier
+        // infinite, which passes `> 0` and then traps converting back to a share count.
+        guard multiplier.isFinite, multiplier > 0, multiplier != 1, holding.quantity > 0 else {
+            return nil
+        }
 
         let totalCost = Double(holding.quantity) * holding.avgBuyPrice
         // A consolidation can round a small position below one share. Real brokers pay
