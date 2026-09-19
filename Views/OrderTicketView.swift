@@ -20,7 +20,12 @@ struct OrderTicket: Identifiable {
 
     /// Buys are capped by cash, sells by shares held.
     var availableCash: Double = 0
+
+    /// Shares actually sellable — the position less anything committed to resting orders.
     var heldQuantity: Int = 0
+
+    /// The whole position, so "none free" can be told apart from "none owned".
+    var totalQuantity: Int = 0
     var averageCost: Double = 0
 
     static func buy(symbol: String, companyName: String, price: Double, availableCash: Double) -> OrderTicket {
@@ -35,6 +40,7 @@ struct OrderTicket: Identifiable {
             companyName: holding.companyName,
             price: holding.currentPrice,
             heldQuantity: freeQuantity ?? holding.quantity,
+            totalQuantity: holding.quantity,
             averageCost: holding.avgBuyPrice
         )
     }
@@ -180,7 +186,15 @@ struct OrderTicketView: View {
                 return "Short by \(CurrencyFormatter.rupees(shortfall)). Reduce the size or add cash."
             }
         } else if quantity > ticket.heldQuantity {
-            return "You only hold \(ticket.heldQuantity) share\(ticket.heldQuantity == 1 ? "" : "s")."
+            let committed = ticket.totalQuantity - ticket.heldQuantity
+            guard committed > 0 else {
+                return "You only hold \(ticket.heldQuantity) share\(ticket.heldQuantity == 1 ? "" : "s")."
+            }
+            // Saying "you hold 0" when the position is merely spoken for reads as a
+            // bug. Name the reason, since the fix is to cancel those orders.
+            return ticket.heldQuantity == 0
+                ? "All \(ticket.totalQuantity) share\(ticket.totalQuantity == 1 ? " is" : "s are") committed to resting orders. Cancel them to sell."
+                : "Only \(ticket.heldQuantity) of \(ticket.totalQuantity) shares are free — the rest back resting orders."
         }
 
         return nil

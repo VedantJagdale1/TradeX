@@ -34,6 +34,12 @@ final class LimitOrder {
     /// Stored as a raw string; read through `kind`.
     var kindRaw: String
 
+    /// Orders placed together as one decision, of which only one can survive.
+    ///
+    /// A target and a stop on the same position are mutually exclusive: whichever the
+    /// market reaches first, the other must go, or the position is sold twice.
+    var groupID: UUID?
+
     /// How far a trailing stop sits from the best price seen, as a percentage.
     var trailPercent: Double?
 
@@ -63,6 +69,7 @@ final class LimitOrder {
         limitPrice: Double,
         kind: Kind = .limit,
         trailPercent: Double? = nil,
+        groupID: UUID? = nil,
         thesis: String = "",
         expiresAt: Date? = nil,
         createdAt: Date = Date()
@@ -77,6 +84,7 @@ final class LimitOrder {
         self.statusRaw = State.open.rawValue
         self.kindRaw = kind.rawValue
         self.trailPercent = trailPercent
+        self.groupID = groupID
         self.expiresAt = expiresAt
         self.createdAt = createdAt
     }
@@ -166,6 +174,29 @@ final class LimitOrder {
         isBuy ? Double(quantity) * limitPrice : 0
     }
 
+    /// Sums a measure across orders, counting each bracket group only once.
+    ///
+    /// Only one leg of a group can ever fill, so committing capital or shares for
+    /// every leg would overstate what the account has tied up.
+    static func exclusiveTotal<T: Comparable & AdditiveArithmetic>(
+        of orders: [LimitOrder],
+        by measure: (LimitOrder) -> T
+    ) -> T {
+        var total = T.zero
+        var groupPeak: [UUID: T] = [:]
+
+        for order in orders {
+            let value = measure(order)
+            guard let groupID = order.groupID else {
+                total += value
+                continue
+            }
+            groupPeak[groupID] = max(groupPeak[groupID] ?? value, value)
+        }
+
+        return groupPeak.values.reduce(total, +)
+    }
+
     var conditionDescription: String {
         let base: String
         switch kind {
@@ -190,6 +221,68 @@ enum FillOutcome: Equatable {
 
 @MainActor
 enum LimitOrderService {
+
+    /// Attaches a target and a stop to an existing position as one decision.
+    ///
+    /// Either can fill, never both. A position left with only a stop caps the loss but
+    /// never books the gain; one left with only a target runs the loss indefinitely.
+    /// - Returns: a message on failure, nil on success.
+    @discardableResult
+    static func protectPosition(
+        holding: PortfolioHolding,
+        quantity: Int,
+        targetPrice: Double,
+        stopPrice: Double?,
+        trailPercent: Double?,
+        thesis: String,
+        modelContext: ModelContext
+    ) -> String? {
+        guard quantity > 0 else { return PortfolioError.invalidQuantity.localizedDescription }
+        guard quantity <= holding.quantity else {
+            return PortfolioError.insufficientShares(
+                requested: quantity, available: holding.quantity
+            ).localizedDescription
+        }
+        guard targetPrice > holding.currentPrice else {
+            return "A target has to be above \(CurrencyFormatter.rupees(holding.currentPrice))."
+        }
+        if let stopPrice, stopPrice >= holding.currentPrice {
+            return "A stop has to be below \(CurrencyFormatter.rupees(holding.currentPrice))."
+        }
+        guard stopPrice != nil || trailPercent != nil else {
+            return "Add a stop, otherwise the downside is unprotected."
+        }
+
+        let groupID = UUID()
+
+        let target = LimitOrder(
+            symbol: holding.symbol, companyName: holding.companyName,
+            isBuy: false, quantity: quantity, limitPrice: targetPrice,
+            kind: .limit, groupID: groupID, thesis: thesis
+        )
+
+        let protection: LimitOrder
+        if let trailPercent {
+            protection = LimitOrder(
+                symbol: holding.symbol, companyName: holding.companyName,
+                isBuy: false, quantity: quantity, limitPrice: 0,
+                kind: .trailingStop, trailPercent: trailPercent,
+                groupID: groupID, thesis: thesis
+            )
+            protection.updateTrail(with: holding.currentPrice)
+        } else {
+            protection = LimitOrder(
+                symbol: holding.symbol, companyName: holding.companyName,
+                isBuy: false, quantity: quantity, limitPrice: stopPrice ?? 0,
+                kind: .stop, groupID: groupID, thesis: thesis
+            )
+        }
+
+        modelContext.insert(target)
+        modelContext.insert(protection)
+        try? modelContext.save()
+        return nil
+    }
 
     /// Places a limit order, or executes it immediately if it is already marketable.
     ///
@@ -300,7 +393,24 @@ enum LimitOrderService {
     static func cancel(_ order: LimitOrder, modelContext: ModelContext) {
         guard order.isOpen else { return }
         order.state = .cancelled
+        cancelSiblings(of: order, modelContext: modelContext)
         try? modelContext.save()
+    }
+
+    /// Cancels the other legs of a one-cancels-other group.
+    ///
+    /// Without this a position with a target and a stop would be sold twice — the
+    /// second leg finding no shares and failing, or worse, selling a position the user
+    /// had rebuilt in between.
+    @discardableResult
+    static func cancelSiblings(of order: LimitOrder, modelContext: ModelContext) -> Int {
+        guard let groupID = order.groupID else { return 0 }
+
+        let siblings = ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
+            .filter { $0.groupID == groupID && $0.id != order.id && $0.isOpen }
+
+        for sibling in siblings { sibling.state = .cancelled }
+        return siblings.count
     }
 
     /// Prices every open order and executes the ones the market has reached.
@@ -419,6 +529,8 @@ enum LimitOrderService {
             order.state = .filled
             order.filledAt = Date()
             order.filledPrice = fillPrice
+            // One leg filling retires the rest of its bracket.
+            cancelSiblings(of: order, modelContext: modelContext)
             try? modelContext.save()
             return .filled(price: fillPrice)
 
@@ -427,6 +539,7 @@ enum LimitOrderService {
             // or the shares already sold. The order fails rather than silently vanishing.
             order.state = .failed
             order.failureReason = error.localizedDescription
+            cancelSiblings(of: order, modelContext: modelContext)
             try? modelContext.save()
             return .failed(reason: error.localizedDescription)
         }

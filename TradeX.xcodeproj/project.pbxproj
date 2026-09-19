@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		8E494E382FFBBD7C00CEBF48 /* GroqService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E494E372FFBBD7A00CEBF48 /* GroqService.swift */; };
 		8E89B9C92FF9889800DB6297 /* StockDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E89B9C82FF9889200DB6297 /* StockDetailView.swift */; };
+		F3EC7CABFC204424931E1287 /* ProtectPositionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 171040D88478463691335121 /* ProtectPositionSheet.swift */; };
 		8EBF52272FF5AA5100AB9A5C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF52252FF5AA5100AB9A5C /* Constants.swift */; };
 		8EBF52292FF5AA5100AB9A5C /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF52202FF5AA5100AB9A5C /* DashboardView.swift */; };
 		8EBF522A2FF5AA5100AB9A5C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF52212FF5AA5100AB9A5C /* ContentView.swift */; };
@@ -46,6 +47,7 @@
 		8EBB04042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */; };
 		8EBB04052FFFFFFF00AB9A5C /* AppLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03052FFFFFFF00AB9A5C /* AppLockTests.swift */; };
 		8EBB04062FFFFFFF00AB9A5C /* StopOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03062FFFFFFF00AB9A5C /* StopOrderTests.swift */; };
+		572EBD7BD562436BA3CA65CD /* BracketOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C26459C9D624D3783EDA367 /* BracketOrderTests.swift */; };
 		8EBB06052FFFFFFF00AB9A5C /* CorporateAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05052FFFFFFF00AB9A5C /* CorporateAction.swift */; };
 		8EBB04072FFFFFFF00AB9A5C /* CorporateActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03072FFFFFFF00AB9A5C /* CorporateActionTests.swift */; };
 		8EBB06062FFFFFFF00AB9A5C /* TradingStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05062FFFFFFF00AB9A5C /* TradingStats.swift */; };
@@ -65,6 +67,7 @@
 /* Begin PBXFileReference section */
 		8E494E372FFBBD7A00CEBF48 /* GroqService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqService.swift; sourceTree = "<group>"; };
 		8E89B9C82FF9889200DB6297 /* StockDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockDetailView.swift; sourceTree = "<group>"; };
+		171040D88478463691335121 /* ProtectPositionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtectPositionSheet.swift; sourceTree = "<group>"; };
 		8EBF520C2FF5AA2800AB9A5C /* TradeX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TradeX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EBF521D2FF5AA5100AB9A5C /* AIAssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantView.swift; sourceTree = "<group>"; };
 		8EBF521E2FF5AA5100AB9A5C /* PortfolioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioView.swift; sourceTree = "<group>"; };
@@ -106,6 +109,7 @@
 		8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectorAndHolidayTests.swift; sourceTree = "<group>"; };
 		8EBB03052FFFFFFF00AB9A5C /* AppLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockTests.swift; sourceTree = "<group>"; };
 		8EBB03062FFFFFFF00AB9A5C /* StopOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopOrderTests.swift; sourceTree = "<group>"; };
+		1C26459C9D624D3783EDA367 /* BracketOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BracketOrderTests.swift; sourceTree = "<group>"; };
 		8EBB05052FFFFFFF00AB9A5C /* CorporateAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorporateAction.swift; sourceTree = "<group>"; };
 		8EBB03072FFFFFFF00AB9A5C /* CorporateActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorporateActionTests.swift; sourceTree = "<group>"; };
 		8EBB05062FFFFFFF00AB9A5C /* TradingStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradingStats.swift; sourceTree = "<group>"; };
@@ -179,6 +183,7 @@
 				8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */,
 				8EAA00052FFFFFFF00AB9A5C /* TradeHistoryView.swift */,
 				8E89B9C82FF9889200DB6297 /* StockDetailView.swift */,
+				171040D88478463691335121 /* ProtectPositionSheet.swift */,
 				8EBF521D2FF5AA5100AB9A5C /* AIAssistantView.swift */,
 				8EBF521E2FF5AA5100AB9A5C /* PortfolioView.swift */,
 				8EBF521F2FF5AA5100AB9A5C /* MarketExplorerView.swift */,
@@ -226,6 +231,7 @@
 				8EBB03082FFFFFFF00AB9A5C /* TradingStatsTests.swift */,
 				8EBB03072FFFFFFF00AB9A5C /* CorporateActionTests.swift */,
 				8EBB03062FFFFFFF00AB9A5C /* StopOrderTests.swift */,
+				1C26459C9D624D3783EDA367 /* BracketOrderTests.swift */,
 				8EBB03052FFFFFFF00AB9A5C /* AppLockTests.swift */,
 				8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */,
 				8EBB03032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift */,
@@ -363,6 +369,7 @@
 				8EAA00062FFFFFFF00AB9A5C /* TradeHistoryView.swift in Sources */,
 				8EAA00042FFFFFFF00AB9A5C /* Trade.swift in Sources */,
 				8E89B9C92FF9889800DB6297 /* StockDetailView.swift in Sources */,
+				F3EC7CABFC204424931E1287 /* ProtectPositionSheet.swift in Sources */,
 				8EBF52362FF6F94700AB9A5C /* MarketExplorerViewModel.swift in Sources */,
 				8EBF52272FF5AA5100AB9A5C /* Constants.swift in Sources */,
 				8EBF523C2FF90C8100AB9A5C /* PortfolioManager.swift in Sources */,
@@ -385,6 +392,7 @@
 				8EBB04082FFFFFFF00AB9A5C /* TradingStatsTests.swift in Sources */,
 				8EBB04072FFFFFFF00AB9A5C /* CorporateActionTests.swift in Sources */,
 				8EBB04062FFFFFFF00AB9A5C /* StopOrderTests.swift in Sources */,
+				572EBD7BD562436BA3CA65CD /* BracketOrderTests.swift in Sources */,
 				8EBB04052FFFFFFF00AB9A5C /* AppLockTests.swift in Sources */,
 				8EBB04042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift in Sources */,
 				8EBB04032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift in Sources */,

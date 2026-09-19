@@ -20,6 +20,7 @@ struct PortfolioView: View {
 
     @State private var orderTicket: OrderTicket?
     @State private var pendingHolding: PortfolioHolding?
+    @State private var protectingHolding: PortfolioHolding?
 
 
     var totalInvested: Double { holdings.reduce(0) { $0 + $1.investedAmount } }
@@ -53,7 +54,8 @@ struct PortfolioView: View {
                                 Button(role: .destructive) {
                                     LimitOrderService.cancel(order, modelContext: modelContext)
                                 } label: {
-                                    Label("Cancel", systemImage: "xmark.circle")
+                                    Label(order.groupID == nil ? "Cancel" : "Cancel Both",
+                                          systemImage: "xmark.circle")
                                 }
                             }
                     }
@@ -99,6 +101,14 @@ struct PortfolioView: View {
                                 Label("Sell", systemImage: "indianrupeesign.circle")
                             }
                         }
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button {
+                                protectingHolding = holding
+                            } label: {
+                                Label("Protect", systemImage: "shield.lefthalf.filled")
+                            }
+                            .tint(Theme.accent)
+                        }
                 }
             }
         }
@@ -117,6 +127,12 @@ struct PortfolioView: View {
             OrderTicketView(ticket: ticket) { request in
                 await placeSell(request)
             }
+        }
+        .sheet(item: $protectingHolding) { holding in
+            ProtectPositionSheet(
+                holding: holding,
+                freeQuantity: PortfolioManager.shared.freeShares(for: holding, in: modelContext)
+            )
         }
         .task {
             await updateLivePrices(force: false)
@@ -182,6 +198,13 @@ private extension PortfolioView {
 
             Spacer()
 
+            if order.groupID != nil {
+                Image(systemName: "link")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.accent)
+                    .accessibilityLabel("Part of a bracket")
+            }
+
             Text(order.kind == .trailingStop ? "Trailing" : (order.kind.isStop ? "Stop" : "Resting"))
                 .font(.caption2)
                 .fontWeight(.semibold)
@@ -194,6 +217,11 @@ private extension PortfolioView {
                 )
         }
         .padding(.vertical, 4)
+    }
+
+    /// True when a bracket is resting against this position.
+    func isProtected(_ holding: PortfolioHolding) -> Bool {
+        openOrders.contains { $0.symbol == holding.symbol && $0.groupID != nil }
     }
 
     func updateLivePrices(force: Bool) async {
@@ -279,6 +307,12 @@ private extension PortfolioView {
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(holding.isProfit ? Theme.profit : Theme.loss)
+
+                if isProtected(holding) {
+                    Label("Protected", systemImage: "shield.lefthalf.filled")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.accent)
+                }
 
                 // Since-bought answers "was this a good trade"; today answers "what just
                 // happened", which is the question people open the app for.

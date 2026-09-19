@@ -246,9 +246,9 @@ final class PortfolioManager {
     /// checks the real balance. That mirrors a broker blocking margin when an order is
     /// placed and debiting it only when the order fills.
     func reservedCash(in modelContext: ModelContext) -> Double {
-        ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
+        let open = ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
             .filter(\.isOpen)
-            .reduce(0) { $0 + $1.reservedCash }
+        return LimitOrder.exclusiveTotal(of: open) { $0.reservedCash }
     }
 
     /// Cash that can still be committed, after resting buys.
@@ -258,9 +258,13 @@ final class PortfolioManager {
 
     /// Shares of one symbol committed to resting sell orders.
     func reservedShares(symbol: String, in modelContext: ModelContext) -> Int {
-        ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
+        let open = ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
             .filter { $0.isOpen && !$0.isBuy && $0.symbol == symbol }
-            .reduce(0) { $0 + $1.quantity }
+
+        // Bracket legs are mutually exclusive, so a group commits its largest leg once,
+        // not the sum of all of them — otherwise a target and a stop over one share
+        // would reserve two, and the position would look fully committed twice over.
+        return LimitOrder.exclusiveTotal(of: open) { $0.quantity }
     }
 
     /// Shares of a holding not already promised to a resting sell.
