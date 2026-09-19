@@ -195,6 +195,9 @@ struct DashboardView: View {
             await PortfolioManager.shared.recordDailySnapshot(modelContext: modelContext)
             // Before anything is priced or alerted on: a split restates the position,
             // and every number downstream depends on it being right.
+            // Undo adjustments an earlier build made for splits that predated the
+            // position, before scanning again on top of them.
+            CorporateActionService.repairMisapplied(modelContext: modelContext)
             if CorporateActionService.shouldScan() {
                 await CorporateActionService.apply(modelContext: modelContext)
             }

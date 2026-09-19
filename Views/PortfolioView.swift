@@ -28,6 +28,12 @@ struct PortfolioView: View {
     var totalPNLPercentage: Double { totalInvested > 0 ? (totalPNL / totalInvested) * 100 : 0 }
     var isOverallProfit: Bool { totalPNL >= 0 }
 
+    /// Nil until at least one holding knows yesterday's close.
+    var totalDayChange: Double? {
+        let moves = holdings.compactMap(\.dayChange)
+        return moves.isEmpty ? nil : moves.reduce(0, +)
+    }
+
     var body: some View {
         List {
 
@@ -230,6 +236,15 @@ private extension PortfolioView {
                     MoneyText(amount: totalInvested, font: .headline)
                 }
                 Spacer()
+                if let today = totalDayChange {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Today")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        MoneyText(amount: today, font: .headline,
+                                  color: Theme.pnl(today), showsSign: true)
+                    }
+                }
             }
         }
         .card()
@@ -263,7 +278,15 @@ private extension PortfolioView {
                 }
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundColor(holding.isProfit ? Theme.profit : Theme.loss)
+                .foregroundStyle(holding.isProfit ? Theme.profit : Theme.loss)
+
+                // Since-bought answers "was this a good trade"; today answers "what just
+                // happened", which is the question people open the app for.
+                if let dayPercent = holding.dayChangePercent {
+                    Text("\(Theme.sign(dayPercent))\(dayPercent, specifier: "%.2f")% today")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .padding(.vertical, 4)

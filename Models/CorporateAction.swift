@@ -84,6 +84,7 @@ enum CorporateActionService {
         guard !holdings.isEmpty else { return [] }
 
         let known = Set(((try? modelContext.fetch(FetchDescriptor<CorporateAction>())) ?? []).map(\.id))
+        let openDates = positionOpenDates(modelContext: modelContext)
         var applied: [CorporateAction] = []
 
         for holding in holdings {
@@ -94,7 +95,12 @@ enum CorporateActionService {
                 splits = (try? await MarketAPIService.shared.fetchSplits(symbol: holding.symbol)) ?? []
             }
 
-            for split in splits {
+            // A split from before the position existed is already in the price that was
+            // paid for it. Reapplying it doubles the shares and halves a cost basis that
+            // was never pre-split — inventing a gain out of an accounting event.
+            let openedAt = openDates[holding.symbol] ?? now
+
+            for split in splits where split.date > openedAt {
                 let id = CorporateAction.identifier(symbol: holding.symbol, date: split.date)
                 guard !known.contains(id) else { continue }
                 guard let action = adjust(holding, for: split) else { continue }
@@ -110,6 +116,65 @@ enum CorporateActionService {
         defaults.set(now, forKey: lastScanKey)
         if !applied.isEmpty { try? modelContext.save() }
         return applied
+    }
+
+    /// When each position was opened, from the earliest buy in the ledger.
+    ///
+    /// A holding with no trade record predates the journal and can't be dated, so the
+    /// caller treats it as opened now — only future splits will touch it. Under-applying
+    /// is recoverable; corrupting a cost basis is not.
+    static func positionOpenDates(modelContext: ModelContext) -> [String: Date] {
+        let trades = (try? modelContext.fetch(FetchDescriptor<Trade>())) ?? []
+        var earliest: [String: Date] = [:]
+
+        for trade in trades where trade.isBuy {
+            if let current = earliest[trade.symbol] {
+                earliest[trade.symbol] = min(current, trade.timestamp)
+            } else {
+                earliest[trade.symbol] = trade.timestamp
+            }
+        }
+        return earliest
+    }
+
+    /// Undoes adjustments that should never have been made.
+    ///
+    /// An earlier build applied every split it could find, including ones predating the
+    /// position. This reverses those, but only where the holding still looks exactly as
+    /// the adjustment left it — if it has been traded since, the original numbers are no
+    /// longer recoverable and it is left alone rather than guessed at.
+    /// - Returns: the symbols repaired.
+    @discardableResult
+    static func repairMisapplied(modelContext: ModelContext) -> [String] {
+        let actions = (try? modelContext.fetch(FetchDescriptor<CorporateAction>())) ?? []
+        guard !actions.isEmpty else { return [] }
+
+        let holdings = (try? modelContext.fetch(FetchDescriptor<PortfolioHolding>())) ?? []
+        let openDates = positionOpenDates(modelContext: modelContext)
+        var repaired: [String] = []
+
+        for action in actions {
+            let openedAt = openDates[action.symbol]
+            // Only actions that predate the position were wrong.
+            guard let openedAt, action.effectiveDate <= openedAt else { continue }
+
+            if let holding = holdings.first(where: { $0.symbol == action.symbol }),
+               holding.quantity == action.quantityAfter,
+               abs(holding.avgBuyPrice - action.averageCostAfter) < 0.01 {
+
+                holding.quantity = action.quantityBefore
+                holding.avgBuyPrice = action.averageCostBefore
+                repaired.append(action.symbol)
+            }
+
+            // Remove the record either way: it describes something that shouldn't have
+            // happened, and leaving it would block the split being applied correctly
+            // if it ever legitimately recurs.
+            modelContext.delete(action)
+        }
+
+        if !actions.isEmpty { try? modelContext.save() }
+        return repaired
     }
 
     /// Splits are rare and the scan costs a request per holding, so it runs daily.

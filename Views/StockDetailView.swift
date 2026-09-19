@@ -32,6 +32,7 @@ struct StockDetailView: View {
     @State private var selectedRange = "1mo"
     @State private var isLoading = true
     @State private var loadFailed = false
+    @State private var quote: StockQuote?
 
     let ranges = ["1d", "5d", "1mo", "6mo", "1y"]
 
@@ -210,12 +211,57 @@ struct StockDetailView: View {
                         .padding(.horizontal)
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        metricTile(title: "Symbol", value: stock.symbol)
-                        metricTile(title: "Exchange", value: "NSE")
+                        if let change = quote?.dayChangePercent {
+                            metricTile(
+                                title: "Today",
+                                value: String(format: "%@%.2f%%", Theme.sign(change), change),
+                                tint: Theme.pnl(change)
+                            )
+                        }
+                        if let high = quote?.dayHigh, let low = quote?.dayLow {
+                            metricTile(title: "Day Range",
+                                       value: "\(CurrencyFormatter.rupees(low)) – \(CurrencyFormatter.rupees(high))")
+                        }
+                        if let high = quote?.fiftyTwoWeekHigh, let low = quote?.fiftyTwoWeekLow {
+                            metricTile(title: "52-Week Range",
+                                       value: "\(CurrencyFormatter.rupees(low)) – \(CurrencyFormatter.rupees(high))")
+                        }
+                        if let volume = quote?.volume {
+                            metricTile(title: "Volume", value: Self.compactVolume.string(from: NSNumber(value: volume)) ?? "\(volume)")
+                        }
+                        metricTile(title: "Sector", value: Sector.forSymbol(stock.symbol).rawValue)
                         metricTile(title: "ISIN", value: stock.isin.isEmpty ? "N/A" : stock.isin)
-                        metricTile(title: "Series", value: stock.series.isEmpty ? "EQ" : stock.series)
                     }
                     .padding(.horizontal)
+
+                    // Where today sits between the yearly extremes — the one number that
+                    // says whether a price is high or low without needing a chart.
+                    if let position = quote?.positionInYearRange,
+                       let high = quote?.fiftyTwoWeekHigh, let low = quote?.fiftyTwoWeekLow {
+                        VStack(alignment: .leading, spacing: 6) {
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    Capsule().fill(Color.secondary.opacity(0.2))
+                                    Circle()
+                                        .fill(Theme.accent)
+                                        .frame(width: 10, height: 10)
+                                        .offset(x: max(0, geometry.size.width * position - 5))
+                                }
+                            }
+                            .frame(height: 10)
+
+                            HStack {
+                                Text(CurrencyFormatter.rupees(low))
+                                Spacer()
+                                Text("\(position * 100, specifier: "%.0f")% of 52-week range")
+                                Spacer()
+                                Text(CurrencyFormatter.rupees(high))
+                            }
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal)
+                    }
                 }
             }
             .padding(.vertical)
@@ -358,6 +404,7 @@ private extension StockDetailView {
             guard !Task.isCancelled else { return }
 
             chartData = series.points
+            quote = series.quote
             if let price = series.displayPrice {
                 currentPrice = price
             }
@@ -371,7 +418,14 @@ private extension StockDetailView {
         isLoading = false
     }
 
-    func metricTile(title: String, value: String) -> some View {
+    static let compactVolume: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 0
+        return formatter
+    }()
+
+    func metricTile(title: String, value: String, tint: Color = .primary) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption)
@@ -379,6 +433,9 @@ private extension StockDetailView {
             Text(value)
                 .font(.body)
                 .fontWeight(.semibold)
+                .foregroundStyle(tint)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()

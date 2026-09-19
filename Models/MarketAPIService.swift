@@ -106,8 +106,7 @@ class MarketAPIService {
         
         return ChartSeries(
             points: points,
-            latestPrice: chartResult.meta.regularMarketPrice,
-            previousClose: chartResult.meta.chartPreviousClose
+            quote: try? StockQuote(meta: chartResult.meta)
         )
     }
     
@@ -167,16 +166,21 @@ class MarketAPIService {
             .sorted { $0.date < $1.date }
     }
 
-    /// A quote for one stock, shared through the cache.
+    /// A full quote for one stock, shared through the cache.
     ///
     /// Pass `maxAge: 0` for a user-initiated refresh that must hit the network.
-    func fetchStockPrice(symbol: String, maxAge: TimeInterval = QuoteCache.defaultMaxAge) async throws -> Double {
-        try await QuoteCache.shared.price(for: symbol, maxAge: maxAge) {
-            try await self.fetchStockPriceUncached(symbol: symbol)
+    func fetchQuote(symbol: String, maxAge: TimeInterval = QuoteCache.defaultMaxAge) async throws -> StockQuote {
+        try await QuoteCache.shared.quote(for: symbol, maxAge: maxAge) {
+            try await self.fetchQuoteUncached(symbol: symbol)
         }
     }
 
-    private func fetchStockPriceUncached(symbol: String) async throws -> Double {
+    /// Just the price, for the many callers that need nothing else.
+    func fetchStockPrice(symbol: String, maxAge: TimeInterval = QuoteCache.defaultMaxAge) async throws -> Double {
+        try await fetchQuote(symbol: symbol, maxAge: maxAge).price
+    }
+
+    private func fetchQuoteUncached(symbol: String) async throws -> StockQuote {
         let yahooSymbol = symbol.hasSuffix(".NS") ? symbol : "\(symbol).NS"
         let urlString = "https://query1.finance.yahoo.com/v8/finance/chart/\(yahooSymbol)?interval=1d&range=1d"
         
@@ -187,11 +191,11 @@ class MarketAPIService {
         let data = try await get(url)
         let result = try JSONDecoder().decode(YahooChartResponse.self, from: data)
 
-        guard let price = result.chart.result?.first?.meta.regularMarketPrice else {
+        guard let meta = result.chart.result?.first?.meta else {
             throw NetworkError.decodingError
         }
-        
-        return price
+
+        return try StockQuote(meta: meta)
     }
 }
 
@@ -240,6 +244,76 @@ struct SplitEvent: Sendable, Equatable {
 struct YahooChartMeta: Decodable {
     let regularMarketPrice: Double?
     let chartPreviousClose: Double?
+    let previousClose: Double?
+    let regularMarketDayHigh: Double?
+    let regularMarketDayLow: Double?
+    let regularMarketVolume: Int?
+    let fiftyTwoWeekHigh: Double?
+    let fiftyTwoWeekLow: Double?
+    let longName: String?
+}
+
+/// Everything one quote tells us.
+///
+/// All of this arrives with every price request and used to be discarded, so the day
+/// change and the 52-week range cost nothing beyond reading fields already downloaded.
+struct StockQuote: Sendable {
+    let price: Double
+    let previousClose: Double?
+    let dayHigh: Double?
+    let dayLow: Double?
+    let fiftyTwoWeekHigh: Double?
+    let fiftyTwoWeekLow: Double?
+    let volume: Int?
+    let longName: String?
+
+    nonisolated init(meta: YahooChartMeta) throws {
+        guard let price = meta.regularMarketPrice else { throw NetworkError.decodingError }
+        self.price = price
+        // `chartPreviousClose` is what the chart is drawn against; `previousClose` is
+        // the fallback for ranges that don't carry it.
+        self.previousClose = meta.chartPreviousClose ?? meta.previousClose
+        self.dayHigh = meta.regularMarketDayHigh
+        self.dayLow = meta.regularMarketDayLow
+        self.fiftyTwoWeekHigh = meta.fiftyTwoWeekHigh
+        self.fiftyTwoWeekLow = meta.fiftyTwoWeekLow
+        self.volume = meta.regularMarketVolume
+        self.longName = meta.longName
+    }
+
+    /// A quote with nothing but a price, for callers that only need the number.
+    nonisolated init(
+        price: Double,
+        previousClose: Double? = nil,
+        dayHigh: Double? = nil,
+        dayLow: Double? = nil,
+        fiftyTwoWeekHigh: Double? = nil,
+        fiftyTwoWeekLow: Double? = nil,
+        volume: Int? = nil,
+        longName: String? = nil
+    ) {
+        self.price = price
+        self.previousClose = previousClose
+        self.dayHigh = dayHigh
+        self.dayLow = dayLow
+        self.fiftyTwoWeekHigh = fiftyTwoWeekHigh
+        self.fiftyTwoWeekLow = fiftyTwoWeekLow
+        self.volume = volume
+        self.longName = longName
+    }
+
+    var dayChange: Double? { previousClose.map { price - $0 } }
+
+    var dayChangePercent: Double? {
+        guard let previousClose, previousClose > 0 else { return nil }
+        return ((price - previousClose) / previousClose) * 100
+    }
+
+    /// Where today's price sits in the yearly range: 0 at the low, 1 at the high.
+    var positionInYearRange: Double? {
+        guard let high = fiftyTwoWeekHigh, let low = fiftyTwoWeekLow, high > low else { return nil }
+        return min(1, max(0, (price - low) / (high - low)))
+    }
 }
 
 struct YahooIndicators: Decodable {
@@ -280,8 +354,12 @@ struct IndexQuote: Sendable {
 /// A price series plus the live quote that came back with it.
 struct ChartSeries: Sendable {
     let points: [ChartPoint]
-    let latestPrice: Double?
-    let previousClose: Double?
+
+    /// The quote that came back alongside the series, when the payload carried one.
+    let quote: StockQuote?
+
+    var latestPrice: Double? { quote?.price }
+    var previousClose: Double? { quote?.previousClose }
 
     /// Prefers the live quote, falling back to the most recent close.
     var displayPrice: Double? {
@@ -423,50 +501,61 @@ actor QuoteCache {
         let fetchedAt: Date
     }
 
-    private var prices: [String: Entry<Double>] = [:]
+    private var quotes: [String: Entry<StockQuote>] = [:]
     private var indexQuotes: [String: Entry<IndexQuote>] = [:]
     private var histories: [String: Entry<ChartSeries>] = [:]
 
     /// In-flight fetches, so concurrent callers for one symbol share a single request.
-    private var priceTasks: [String: Task<Double, Error>] = [:]
+    private var quoteTasks: [String: Task<StockQuote, Error>] = [:]
     private var indexTasks: [String: Task<IndexQuote, Error>] = [:]
     private var historyTasks: [String: Task<ChartSeries, Error>] = [:]
 
     private var backoffUntil: Date?
 
+    func quote(
+        for symbol: String,
+        maxAge: TimeInterval,
+        fetch: @escaping @Sendable () async throws -> StockQuote
+    ) async throws -> StockQuote {
+        if let entry = quotes[symbol], Date().timeIntervalSince(entry.fetchedAt) < maxAge {
+            return entry.value
+        }
+
+        if let stale = try rateLimitFallback(quotes[symbol]?.value) {
+            return stale
+        }
+
+        if let existing = quoteTasks[symbol] {
+            return try await existing.value
+        }
+
+        let task = Task { try await fetch() }
+        quoteTasks[symbol] = task
+
+        do {
+            let value = try await task.value
+            quoteTasks[symbol] = nil
+            quotes[symbol] = Entry(value: value, fetchedAt: Date())
+            return value
+        } catch {
+            quoteTasks[symbol] = nil
+            noteFailure(error)
+            // A stale quote beats no quote: the caller would otherwise see nil and
+            // silently skip an alert or an order check.
+            if let stale = quotes[symbol]?.value { return stale }
+            throw error
+        }
+    }
+
+    /// Price-only convenience, so existing callers and tests stay terse.
     func price(
         for symbol: String,
         maxAge: TimeInterval,
         fetch: @escaping @Sendable () async throws -> Double
     ) async throws -> Double {
-        if let entry = prices[symbol], Date().timeIntervalSince(entry.fetchedAt) < maxAge {
-            return entry.value
-        }
-
-        if let stale = try rateLimitFallback(prices[symbol]?.value) {
-            return stale
-        }
-
-        if let existing = priceTasks[symbol] {
-            return try await existing.value
-        }
-
-        let task = Task { try await fetch() }
-        priceTasks[symbol] = task
-
-        do {
-            let value = try await task.value
-            priceTasks[symbol] = nil
-            prices[symbol] = Entry(value: value, fetchedAt: Date())
-            return value
-        } catch {
-            priceTasks[symbol] = nil
-            noteFailure(error)
-            // A stale quote beats no quote: the caller would otherwise see nil and
-            // silently skip an alert or an order check.
-            if let stale = prices[symbol]?.value { return stale }
-            throw error
-        }
+        try await quote(for: symbol, maxAge: maxAge) {
+            StockQuote(price: try await fetch())
+        }.price
     }
 
     func indexQuote(
@@ -558,7 +647,7 @@ actor QuoteCache {
 
     /// Testing and manual refresh: drop everything held.
     func invalidate() {
-        prices.removeAll()
+        quotes.removeAll()
         indexQuotes.removeAll()
         histories.removeAll()
         backoffUntil = nil

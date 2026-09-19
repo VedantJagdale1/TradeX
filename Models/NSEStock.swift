@@ -110,6 +110,10 @@ final class PortfolioHolding {
     var quantity: Int
     var avgBuyPrice: Double
     var currentPrice: Double
+
+    /// Yesterday's close, so the row can show what the position did *today* rather than
+    /// only since it was bought. Zero means not yet known.
+    var previousClose: Double = 0
     
     init(
         id: UUID = UUID(),
@@ -117,7 +121,8 @@ final class PortfolioHolding {
         companyName: String,
         quantity: Int,
         avgBuyPrice: Double,
-        currentPrice: Double
+        currentPrice: Double,
+        previousClose: Double = 0
     ) {
         self.id = id
         self.symbol = symbol
@@ -125,6 +130,7 @@ final class PortfolioHolding {
         self.quantity = quantity
         self.avgBuyPrice = avgBuyPrice
         self.currentPrice = currentPrice
+        self.previousClose = previousClose
     }
     
     
@@ -147,5 +153,16 @@ final class PortfolioHolding {
     
     var isProfit: Bool {
         return totalPNL >= 0
+    }
+
+    /// What this position made or lost today, as distinct from since it was opened.
+    var dayChange: Double? {
+        guard previousClose > 0 else { return nil }
+        return Double(quantity) * (currentPrice - previousClose)
+    }
+
+    var dayChangePercent: Double? {
+        guard previousClose > 0 else { return nil }
+        return ((currentPrice - previousClose) / previousClose) * 100
     }
 }

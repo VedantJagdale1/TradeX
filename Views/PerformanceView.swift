@@ -70,6 +70,13 @@ struct PerformanceView: View {
     @Query(sort: \PortfolioSnapshot.day) private var snapshots: [PortfolioSnapshot]
     @Query private var trades: [Trade]
 
+    private var stats: TradingStats {
+        TradingStats.make(
+            closed: TradingStats.closedTrades(from: trades.map(LedgerTrade.init)),
+            equityCurve: portfolioPoints.map(\.value)
+        )
+    }
+
     @State private var isRebuilding = false
     @State private var rebuildNotice: String?
 
@@ -111,6 +118,7 @@ struct PerformanceView: View {
                     VStack(spacing: 20) {
                         summaryCard
                         growthChart
+                        riskCard
                         verdictCard
                     }
                     .padding()
@@ -182,6 +190,73 @@ private extension PerformanceView {
         } catch {
             rebuildNotice = error.localizedDescription
         }
+    }
+
+    /// How the return was earned, as opposed to how large it was.
+    var riskCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Risk & Discipline")
+                .font(.headline)
+
+            HStack(alignment: .top) {
+                statTile(
+                    title: "Max Drawdown",
+                    value: String(format: "-%.2f%%", stats.maxDrawdown),
+                    tint: stats.maxDrawdown > 0 ? Theme.loss : .primary
+                )
+                Spacer()
+                statTile(
+                    title: "Expectancy",
+                    value: stats.closedCount == 0 ? "—"
+                        : "\(Theme.sign(stats.expectancy))\(CurrencyFormatter.rupees(stats.expectancy))",
+                    tint: stats.closedCount == 0 ? .primary : Theme.pnl(stats.expectancy)
+                )
+            }
+
+            Text("The deepest fall from a high, and what an average trade is worth. A record can show a gain and still have been a bad ride.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            if stats.closedCount > 0 {
+                Divider()
+
+                HStack(alignment: .top) {
+                    statTile(title: "Avg Win",
+                             value: CurrencyFormatter.rupees(stats.averageWin), tint: Theme.profit)
+                    Spacer()
+                    statTile(title: "Avg Loss",
+                             value: CurrencyFormatter.rupees(stats.averageLoss), tint: Theme.loss)
+                    Spacer()
+                    statTile(
+                        title: "Profit Factor",
+                        value: stats.profitFactor.map { String(format: "%.2f", $0) } ?? "—",
+                        tint: .primary
+                    )
+                }
+            }
+
+            if let winners = stats.averageHoldWinners, let losers = stats.averageHoldLosers {
+                Divider()
+
+                HStack(alignment: .top) {
+                    statTile(title: "Winners Held",
+                             value: String(format: "%.1f days", winners), tint: .primary)
+                    Spacer()
+                    statTile(title: "Losers Held",
+                             value: String(format: "%.1f days", losers), tint: .primary)
+                }
+
+                // The most common way a record goes wrong, and invisible in the return.
+                Text(stats.holdsLosersLonger
+                     ? "You hold losers longer than winners — cutting gains short while letting losses run."
+                     : "You hold winners longer than losers, which is the way round you want it.")
+                    .font(.caption2)
+                    .foregroundStyle(stats.holdsLosersLonger ? Theme.caution : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
     }
 
     var summaryCard: some View {

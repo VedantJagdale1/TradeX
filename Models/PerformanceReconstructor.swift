@@ -15,12 +15,31 @@ struct LedgerTrade: Sendable {
     let price: Double
     let timestamp: Date
 
+    /// Booked on sells, nil on buys. Unused by the replay, which cares only about what
+    /// moved; read by the statistics, which care about what it earned.
+    var realizedPnL: Double? = nil
+
     var cashFlow: Double {
         (isBuy ? -1 : 1) * Double(quantity) * price
     }
 
     var quantityChange: Int {
         isBuy ? quantity : -quantity
+    }
+}
+
+extension LedgerTrade {
+    /// Nonisolated so views can map the ledger without hopping actors just to read
+    /// stored properties off a model object they already hold.
+    nonisolated init(_ trade: Trade) {
+        self.init(
+            symbol: trade.symbol,
+            isBuy: trade.isBuy,
+            quantity: trade.quantity,
+            price: trade.price,
+            timestamp: trade.timestamp,
+            realizedPnL: trade.realizedPnL
+        )
     }
 }
 
@@ -179,15 +198,7 @@ enum PerformanceReconstructor {
             FetchDescriptor<CashAdjustment>(sortBy: [SortDescriptor(\.timestamp)])
         )) ?? []
 
-        let trades = storedTrades.map {
-            LedgerTrade(
-                symbol: $0.symbol,
-                isBuy: $0.isBuy,
-                quantity: $0.quantity,
-                price: $0.price,
-                timestamp: $0.timestamp
-            )
-        }
+        let trades = storedTrades.map(LedgerTrade.init)
         let adjustments = storedAdjustments.map {
             LedgerCashFlow(amount: $0.amount, timestamp: $0.timestamp)
         }

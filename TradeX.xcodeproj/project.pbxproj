@@ -48,6 +48,8 @@
 		8EBB04062FFFFFFF00AB9A5C /* StopOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03062FFFFFFF00AB9A5C /* StopOrderTests.swift */; };
 		8EBB06052FFFFFFF00AB9A5C /* CorporateAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05052FFFFFFF00AB9A5C /* CorporateAction.swift */; };
 		8EBB04072FFFFFFF00AB9A5C /* CorporateActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03072FFFFFFF00AB9A5C /* CorporateActionTests.swift */; };
+		8EBB06062FFFFFFF00AB9A5C /* TradingStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05062FFFFFFF00AB9A5C /* TradingStats.swift */; };
+		8EBB04082FFFFFFF00AB9A5C /* TradingStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03082FFFFFFF00AB9A5C /* TradingStatsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -106,6 +108,8 @@
 		8EBB03062FFFFFFF00AB9A5C /* StopOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopOrderTests.swift; sourceTree = "<group>"; };
 		8EBB05052FFFFFFF00AB9A5C /* CorporateAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorporateAction.swift; sourceTree = "<group>"; };
 		8EBB03072FFFFFFF00AB9A5C /* CorporateActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorporateActionTests.swift; sourceTree = "<group>"; };
+		8EBB05062FFFFFFF00AB9A5C /* TradingStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradingStats.swift; sourceTree = "<group>"; };
+		8EBB03082FFFFFFF00AB9A5C /* TradingStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradingStatsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -187,6 +191,7 @@
 		8EBF52242FF5AA5100AB9A5C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				8EBB05062FFFFFFF00AB9A5C /* TradingStats.swift */,
 				8EBB05052FFFFFFF00AB9A5C /* CorporateAction.swift */,
 				8EBB05042FFFFFFF00AB9A5C /* Sector.swift */,
 				8EBB05022FFFFFFF00AB9A5C /* StoredChatMessage.swift */,
@@ -218,6 +223,7 @@
 		8EBB00032FFFFFFF00AB9A5C /* TradeXTests */ = {
 			isa = PBXGroup;
 			children = (
+				8EBB03082FFFFFFF00AB9A5C /* TradingStatsTests.swift */,
 				8EBB03072FFFFFFF00AB9A5C /* CorporateActionTests.swift */,
 				8EBB03062FFFFFFF00AB9A5C /* StopOrderTests.swift */,
 				8EBB03052FFFFFFF00AB9A5C /* AppLockTests.swift */,
@@ -340,6 +346,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBF523A2FF9099700AB9A5C /* MarketAPIService.swift in Sources */,
+				8EBB06062FFFFFFF00AB9A5C /* TradingStats.swift in Sources */,
 				8EBB06052FFFFFFF00AB9A5C /* CorporateAction.swift in Sources */,
 				8EBB06042FFFFFFF00AB9A5C /* Sector.swift in Sources */,
 				8EBB06032FFFFFFF00AB9A5C /* SettingsView.swift in Sources */,
@@ -375,6 +382,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8EBB02002FFFFFFF00AB9A5C /* MarketSessionTests.swift in Sources */,
+				8EBB04082FFFFFFF00AB9A5C /* TradingStatsTests.swift in Sources */,
 				8EBB04072FFFFFFF00AB9A5C /* CorporateActionTests.swift in Sources */,
 				8EBB04062FFFFFFF00AB9A5C /* StopOrderTests.swift in Sources */,
 				8EBB04052FFFFFFF00AB9A5C /* AppLockTests.swift in Sources */,

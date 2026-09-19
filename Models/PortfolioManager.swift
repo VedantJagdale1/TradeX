@@ -344,28 +344,32 @@ final class PortfolioManager {
         let task = Task { @MainActor in
             // Fetch concurrently — the old per-view loop awaited each quote in turn,
             // so a 20-position portfolio meant 20 sequential round-trips.
-            let quotes = await withTaskGroup(of: (String, Double?).self) { group in
+            let quotes = await withTaskGroup(of: (String, StockQuote?).self) { group in
                 for symbol in symbols {
                     group.addTask {
                         // A forced refresh is user-initiated and must bypass the cache.
-                        (symbol, try? await MarketAPIService.shared.fetchStockPrice(
+                        (symbol, try? await MarketAPIService.shared.fetchQuote(
                             symbol: symbol,
                             maxAge: force ? 0 : QuoteCache.defaultMaxAge
                         ))
                     }
                 }
 
-                var collected: [String: Double] = [:]
-                for await (symbol, price) in group {
-                    if let price { collected[symbol] = price }
+                var collected: [String: StockQuote] = [:]
+                for await (symbol, quote) in group {
+                    if let quote { collected[symbol] = quote }
                 }
                 return collected
             }
 
             guard !quotes.isEmpty else { return }
 
-            for (symbol, price) in quotes {
-                fetchHolding(symbol: symbol, modelContext: modelContext)?.currentPrice = price
+            for (symbol, quote) in quotes {
+                guard let holding = fetchHolding(symbol: symbol, modelContext: modelContext) else { continue }
+                holding.currentPrice = quote.price
+                if let previousClose = quote.previousClose {
+                    holding.previousClose = previousClose
+                }
             }
             save(modelContext)
         }
