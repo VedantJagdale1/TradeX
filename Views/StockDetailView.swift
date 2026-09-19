@@ -192,7 +192,8 @@ struct StockDetailView: View {
                         symbol: stock.symbol,
                         companyName: stock.name,
                         price: currentPrice,
-                        availableCash: PortfolioManager.shared.freeCash(in: modelContext)
+                        availableCash: PortfolioManager.shared.freeCash(in: modelContext),
+                        costs: PortfolioManager.shared.settings(in: modelContext).costSchedule
                     )
                 } label: {
                     Label("Buy \(stock.symbol)", systemImage: "plus.circle.fill")

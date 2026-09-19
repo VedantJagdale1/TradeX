@@ -119,6 +119,7 @@ struct PerformanceView: View {
                         summaryCard
                         growthChart
                         riskCard
+                        if !trades.isEmpty { costCard }
                         verdictCard
                     }
                     .padding()
@@ -193,6 +194,58 @@ private extension PerformanceView {
     }
 
     /// How the return was earned, as opposed to how large it was.
+    /// Everything paid to trade, and what share of the gains it took.
+    var chargesPaid: Double { trades.reduce(0) { $0 + $1.charges } }
+
+    /// Gross profit on winning trades — the pool the charges came out of.
+    var grossWins: Double {
+        trades.compactMap(\.realizedPnL).filter { $0 > 0 }.reduce(0, +)
+    }
+
+    var costCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("The Cost of Trading")
+                .font(.headline)
+
+            HStack(alignment: .top) {
+                statTile(title: "Charges Paid",
+                         value: CurrencyFormatter.rupees(chargesPaid), tint: Theme.caution)
+                Spacer()
+                statTile(
+                    title: "Per Trade",
+                    value: trades.isEmpty ? "—"
+                        : CurrencyFormatter.rupees(chargesPaid / Double(trades.count)),
+                    tint: .primary
+                )
+                Spacer()
+                statTile(title: "Trades", value: "\(trades.count)", tint: .primary)
+            }
+
+            // Charges as a share of what the winners made is the number that changes
+            // behaviour — it turns an abstract fee into a bite out of the good trades.
+            if grossWins > 0 {
+                let bite = chargesPaid / grossWins * 100
+                Text(String(
+                    format: "Charges have taken %.1f%% of everything your winning trades made. %@",
+                    bite,
+                    bite > 25
+                        ? "Fewer, larger trades would keep more of it."
+                        : "Comfortably covered by the wins."
+                ))
+                .font(.caption2)
+                .foregroundStyle(bite > 25 ? Theme.caution : .secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("STT, stamp duty, exchange and SEBI fees, GST and depository charges, applied to every trade. The flat depository fee makes small sells expensive out of all proportion.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
     var riskCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Risk & Discipline")

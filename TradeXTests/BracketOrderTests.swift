@@ -26,6 +26,11 @@ private struct Bracketed {
         manager = PortfolioManager()
         manager.quoteProvider = { _ in nil }
 
+        // These suites assert exact cash movements, so they trade at clean prices.
+        // Charges have their own suite; mixing the two would make every arithmetic
+        // assertion here a test of the tax code as well.
+        manager.settings(in: context).brokerProfile = .none
+
         try await manager.addStock(symbol: "RELIANCE", companyName: "Reliance",
                                    quantity: quantity, buyPrice: entry, modelContext: context)
         holding = ((try? context.fetch(FetchDescriptor<PortfolioHolding>())) ?? []).first!

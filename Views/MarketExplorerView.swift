@@ -134,7 +134,8 @@ private extension MarketExplorerView {
                 symbol: stock.symbol,
                 companyName: stock.name,
                 price: price,
-                availableCash: PortfolioManager.shared.freeCash(in: modelContext)
+                availableCash: PortfolioManager.shared.freeCash(in: modelContext),
+                costs: PortfolioManager.shared.settings(in: modelContext).costSchedule
             )
         }
     }

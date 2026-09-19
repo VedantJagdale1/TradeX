@@ -13,6 +13,7 @@ All trading is simulated. Nothing in the app is investment advice.
 * **Performance vs Benchmark:** Time-weighted return charted against the NIFTY 50, with deposits factored out so paying money in is never mistaken for making money.
 * **Resting Orders:** Limit, stop and trailing-stop orders that rest until the market reaches them, checked only during NSE hours so nothing fills against a stale close.
 * **Bracketed Exits (OCO):** A target and a stop attached to a position as one decision, showing the risk/reward ratio and the hit rate needed to break even. Whichever fills cancels the other, so a position is never sold twice.
+* **Indian Transaction Charges:** STT, exchange and SEBI fees, stamp duty, GST and depository charges applied to every trade and itemised before it is placed, so win rate and expectancy measure what a trade actually kept. Switchable between discount, full-service and no-charge rate cards.
 * **Partial Position Management:** Sell all or part of a holding at the live market price, with average cost preserved across the remainder.
 * **Live Market Data:** Real-time quotes, historical price charts, and live NIFTY 50 / SENSEX index levels.
 * **AI Assistant Integration:** A direct, zero-dependency REST HTTP network implementation connecting seamlessly to the frontier-class **Groq API**, with the user's holdings, cash position, and full trade history supplied as context for risk analysis and decision review.

@@ -95,7 +95,18 @@ class CSVParser {
 @Model
 class UserSettings {
     var availableCash: Double
-    
+
+    /// Which rate card trades are billed against. Stored raw so an unrecognised value
+    /// from a future build degrades to the default rather than refusing to load.
+    var brokerProfileRaw: String = BrokerProfile.discount.rawValue
+
+    var brokerProfile: BrokerProfile {
+        get { BrokerProfile(rawValue: brokerProfileRaw) ?? .discount }
+        set { brokerProfileRaw = newValue.rawValue }
+    }
+
+    var costSchedule: CostSchedule { brokerProfile.schedule }
+
     init(availableCash: Double = 274500.00) {
         self.availableCash = availableCash
     }

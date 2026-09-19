@@ -25,6 +25,11 @@ private struct Desk {
         context = ModelContext(container)
         manager = PortfolioManager()
         manager.quoteProvider = { _ in nil }   // no post-trade re-mark
+
+        // These suites assert exact cash movements, so they trade at clean prices.
+        // Charges have their own suite; mixing the two would make every arithmetic
+        // assertion here a test of the tax code as well.
+        manager.settings(in: context).brokerProfile = .none
     }
 
     /// A Friday mid-session, and the following Saturday.

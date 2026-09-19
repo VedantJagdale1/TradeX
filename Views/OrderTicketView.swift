@@ -7,6 +7,7 @@ import SwiftUI
 
 /// Everything the ticket needs to price and validate an order before it is placed.
 struct OrderTicket: Identifiable {
+
     enum Side {
         case buy
         case sell
@@ -28,12 +29,19 @@ struct OrderTicket: Identifiable {
     var totalQuantity: Int = 0
     var averageCost: Double = 0
 
-    static func buy(symbol: String, companyName: String, price: Double, availableCash: Double) -> OrderTicket {
-        OrderTicket(side: .buy, symbol: symbol, companyName: companyName, price: price, availableCash: availableCash)
+    /// The rate card this account trades on, so the bill can be shown before the order
+    /// is placed rather than discovered in the cash balance afterwards.
+    var costs: CostSchedule = .discountDelivery
+
+    static func buy(symbol: String, companyName: String, price: Double,
+                    availableCash: Double, costs: CostSchedule = .discountDelivery) -> OrderTicket {
+        OrderTicket(side: .buy, symbol: symbol, companyName: companyName, price: price,
+                    availableCash: availableCash, costs: costs)
     }
 
     /// `freeQuantity` excludes shares already committed to resting sell orders.
-    static func sell(holding: PortfolioHolding, freeQuantity: Int? = nil) -> OrderTicket {
+    static func sell(holding: PortfolioHolding, freeQuantity: Int? = nil,
+                     costs: CostSchedule = .discountDelivery) -> OrderTicket {
         OrderTicket(
             side: .sell,
             symbol: holding.symbol,
@@ -41,7 +49,8 @@ struct OrderTicket: Identifiable {
             price: holding.currentPrice,
             heldQuantity: freeQuantity ?? holding.quantity,
             totalQuantity: holding.quantity,
-            averageCost: holding.avgBuyPrice
+            averageCost: holding.avgBuyPrice,
+            costs: costs
         )
     }
 }
@@ -141,9 +150,20 @@ struct OrderTicketView: View {
 
     private var orderValue: Double { Double(quantity) * effectivePrice }
 
-    /// P&L this sell would book, at the price on screen.
+    /// What this order would be billed at the price on screen. A resting order is
+    /// estimated at its trigger, which is the best guess available before it fills.
+    private var estimatedCharges: CostBreakdown {
+        ticket.costs.charges(isBuy: isBuy, quantity: quantity, price: effectivePrice)
+    }
+
+    /// Cash actually leaving or arriving, charges included.
+    private var netCashFlow: Double {
+        isBuy ? orderValue + estimatedCharges.total : orderValue - estimatedCharges.total
+    }
+
+    /// P&L this sell would book after the cost of booking it.
     private var projectedPnL: Double {
-        Double(quantity) * (ticket.price - ticket.averageCost)
+        Double(quantity) * (ticket.price - ticket.averageCost) - estimatedCharges.total
     }
 
     private var accent: Color { isBuy ? Theme.profit : Theme.accent }
@@ -181,7 +201,7 @@ struct OrderTicketView: View {
         }
 
         if isBuy {
-            let shortfall = orderValue - ticket.availableCash
+            let shortfall = netCashFlow - ticket.availableCash
             if shortfall > 0 {
                 return "Short by \(CurrencyFormatter.rupees(shortfall)). Reduce the size or add cash."
             }
@@ -429,8 +449,17 @@ private extension OrderTicketView {
     var summarySection: some View {
         VStack(spacing: 12) {
             summaryRow(
+                title: "Order value",
+                value: AnyView(MoneyText(amount: orderValue, font: .subheadline, color: .secondary))
+            )
+
+            if !estimatedCharges.isZero {
+                chargesDisclosure
+            }
+
+            summaryRow(
                 title: isBuy ? "Estimated cost" : "Estimated proceeds",
-                value: AnyView(MoneyText(amount: orderValue))
+                value: AnyView(MoneyText(amount: netCashFlow))
             )
 
             Divider()
@@ -442,13 +471,13 @@ private extension OrderTicketView {
                         MoneyText(
                             amount: ticket.availableCash,
                             font: .headline,
-                            color: orderValue > ticket.availableCash ? Theme.loss : .primary
+                            color: netCashFlow > ticket.availableCash ? Theme.loss : .primary
                         )
                     )
                 )
             } else {
                 summaryRow(
-                    title: "Projected P&L",
+                    title: "Projected P&L, net",
                     value: AnyView(
                         MoneyText(
                             amount: projectedPnL,
@@ -465,6 +494,38 @@ private extension OrderTicketView {
             }
         }
         .card()
+    }
+
+    /// Collapsed by default: the total is what matters, the itemisation is for when
+    /// the total looks wrong.
+    var chargesDisclosure: some View {
+        DisclosureGroup {
+            VStack(spacing: 6) {
+                ForEach(estimatedCharges.items, id: \.label) { item in
+                    HStack {
+                        Text(item.label)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(CurrencyFormatter.rupees(item.amount))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            HStack {
+                Text("Charges")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("−\(CurrencyFormatter.rupees(estimatedCharges.total))")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.caution)
+            }
+        }
+        .tint(.secondary)
     }
 
     func summaryRow(title: String, value: AnyView) -> some View {

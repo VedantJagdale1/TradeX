@@ -112,6 +112,7 @@ struct StopExecutionTests {
             context = ModelContext(container)
             manager = PortfolioManager()
             manager.quoteProvider = { _ in nil }
+            manager.settings(in: context).brokerProfile = .none
         }
 
         static let duringSession: Date = {

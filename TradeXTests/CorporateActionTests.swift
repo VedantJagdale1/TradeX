@@ -25,6 +25,7 @@ struct CorporateActionTests {
             context = ModelContext(container)
             manager = PortfolioManager()
             manager.quoteProvider = { _ in nil }
+            manager.settings(in: context).brokerProfile = .none
         }
 
         /// Records the buy that opened a position, so splits can be dated against it.

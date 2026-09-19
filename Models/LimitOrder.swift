@@ -171,7 +171,18 @@ final class LimitOrder {
 
     /// Cash a resting buy ties up, or zero for a sell.
     var reservedCash: Double {
-        isBuy ? Double(quantity) * limitPrice : 0
+        reservedCash(under: .none)
+    }
+
+    /// Cash this order ties up, including what it will be billed when it fills.
+    ///
+    /// Reserving only the turnover would let an order sized to the last rupee of free
+    /// cash rest happily and then fail at the moment it filled, which is the worst
+    /// time to discover it.
+    func reservedCash(under schedule: CostSchedule) -> Double {
+        guard isBuy else { return 0 }
+        return Double(quantity) * limitPrice
+            + schedule.total(isBuy: true, quantity: quantity, price: limitPrice)
     }
 
     /// Sums a measure across orders, counting each bracket group only once.

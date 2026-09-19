@@ -25,9 +25,14 @@ final class Trade {
     /// adding the input field won't require a schema migration.
     var thesis: String
 
-    /// Profit or loss booked by this trade. Set on sells, `nil` on buys (a buy opens
-    /// exposure, it doesn't realise anything).
+    /// Profit or loss booked by this trade, before charges. Set on sells, `nil` on
+    /// buys (a buy opens exposure, it doesn't realise anything).
     var realizedPnL: Double?
+
+    /// Brokerage, taxes and fees paid on this trade. Defaults to zero so trades
+    /// recorded before charges were modelled migrate without a story being invented
+    /// for them.
+    var charges: Double = 0
 
     init(
         id: UUID = UUID(),
@@ -38,7 +43,8 @@ final class Trade {
         price: Double,
         timestamp: Date = Date(),
         thesis: String = "",
-        realizedPnL: Double? = nil
+        realizedPnL: Double? = nil,
+        charges: Double = 0
     ) {
         self.id = id
         self.symbol = symbol
@@ -49,11 +55,23 @@ final class Trade {
         self.timestamp = timestamp
         self.thesis = thesis
         self.realizedPnL = realizedPnL
+        self.charges = charges
     }
 
-    /// Cash that moved: what the buy cost, or what the sell returned.
+    /// Turnover at the executed price, before charges.
     var totalValue: Double {
         Double(quantity) * price
+    }
+
+    /// Cash that actually moved: a buy costs more than its turnover, a sell returns less.
+    var netCashFlow: Double {
+        isBuy ? totalValue + charges : totalValue - charges
+    }
+
+    /// What the trade made after the cost of making it. This is the number that decides
+    /// whether a small win was a win at all.
+    var netRealizedPnL: Double? {
+        realizedPnL.map { $0 - charges }
     }
 
     var isClosingTrade: Bool {
@@ -61,7 +79,7 @@ final class Trade {
     }
 
     var isProfitable: Bool {
-        (realizedPnL ?? 0) >= 0
+        (netRealizedPnL ?? 0) >= 0
     }
 }
 

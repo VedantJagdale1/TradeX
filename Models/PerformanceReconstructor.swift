@@ -17,6 +17,9 @@ struct LedgerTrade: Sendable {
 
     /// Booked on sells, nil on buys. Unused by the replay, which cares only about what
     /// moved; read by the statistics, which care about what it earned.
+    /// Net of charges, so every statistic derived from the ledger — win rate,
+    /// expectancy, the equity curve — measures what the trade actually kept. Computing
+    /// these gross flatters any strategy, and flatters frequent trading most of all.
     var realizedPnL: Double? = nil
 
     var cashFlow: Double {
@@ -38,7 +41,7 @@ extension LedgerTrade {
             quantity: trade.quantity,
             price: trade.price,
             timestamp: trade.timestamp,
-            realizedPnL: trade.realizedPnL
+            realizedPnL: trade.netRealizedPnL
         )
     }
 }

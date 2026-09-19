@@ -95,7 +95,8 @@ struct PortfolioView: View {
                                     freeQuantity: PortfolioManager.shared.freeShares(
                                         for: holding,
                                         in: modelContext
-                                    )
+                                    ),
+                                    costs: PortfolioManager.shared.settings(in: modelContext).costSchedule
                                 )
                             } label: {
                                 Label("Sell", systemImage: "indianrupeesign.circle")

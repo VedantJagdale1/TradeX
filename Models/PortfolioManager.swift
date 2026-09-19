@@ -137,8 +137,16 @@ final class PortfolioManager {
         guard quantity > 0 else { throw PortfolioError.invalidQuantity }
         guard buyPrice > 0, buyPrice.isFinite else { throw PortfolioError.invalidPrice }
 
-        let totalCost = Double(quantity) * buyPrice
+        let turnover = Double(quantity) * buyPrice
         let appSettings = settings(in: modelContext)
+
+        // Charges are part of what the order costs, so affordability is checked
+        // against the full debit. Otherwise an order sized to the last rupee of cash
+        // would overdraw the account the moment the bill landed.
+        let charges = appSettings.costSchedule.total(
+            isBuy: true, quantity: quantity, price: buyPrice
+        )
+        let totalCost = turnover + charges
 
         guard totalCost <= appSettings.availableCash else {
             throw PortfolioError.insufficientFunds(
@@ -149,7 +157,9 @@ final class PortfolioManager {
 
         if let holding = fetchHolding(symbol: symbol, modelContext: modelContext) {
             let totalQuantity = holding.quantity + quantity
-            let dynamicTotalCost = (Double(holding.quantity) * holding.avgBuyPrice) + totalCost
+            // Average cost tracks the executed price, not the billed one — charges are
+            // reported separately so they can be seen rather than buried in the basis.
+            let dynamicTotalCost = (Double(holding.quantity) * holding.avgBuyPrice) + turnover
             holding.quantity = totalQuantity
             holding.avgBuyPrice = dynamicTotalCost / Double(totalQuantity)
         } else {
@@ -172,7 +182,8 @@ final class PortfolioManager {
                 isBuy: true,
                 quantity: quantity,
                 price: buyPrice,
-                thesis: thesis
+                thesis: thesis,
+                charges: charges
             )
         )
 
@@ -200,13 +211,17 @@ final class PortfolioManager {
             throw PortfolioError.insufficientShares(requested: quantity, available: holding.quantity)
         }
 
-        let proceeds = Double(quantity) * holding.currentPrice
+        let appSettings = settings(in: modelContext)
+        let turnover = Double(quantity) * holding.currentPrice
+        let charges = appSettings.costSchedule.total(
+            isBuy: false, quantity: quantity, price: holding.currentPrice
+        )
+        let proceeds = turnover - charges
         let realizedPnL = (holding.currentPrice - holding.avgBuyPrice) * Double(quantity)
 
         // Always resolve through `settings(in:)`. The old code refunded only when a
         // settings row happened to exist, so selling on a fresh install deleted the
         // position and silently destroyed the proceeds.
-        let appSettings = settings(in: modelContext)
         appSettings.availableCash += proceeds
 
         // Book the result before anything is deleted — once the holding is gone, the
@@ -219,7 +234,8 @@ final class PortfolioManager {
                 quantity: quantity,
                 price: holding.currentPrice,
                 thesis: thesis,
-                realizedPnL: realizedPnL
+                realizedPnL: realizedPnL,
+                charges: charges
             )
         )
 
@@ -248,7 +264,8 @@ final class PortfolioManager {
     func reservedCash(in modelContext: ModelContext) -> Double {
         let open = ((try? modelContext.fetch(FetchDescriptor<LimitOrder>())) ?? [])
             .filter(\.isOpen)
-        return LimitOrder.exclusiveTotal(of: open) { $0.reservedCash }
+        let schedule = settings(in: modelContext).costSchedule
+        return LimitOrder.exclusiveTotal(of: open) { $0.reservedCash(under: schedule) }
     }
 
     /// Cash that can still be committed, after resting buys.

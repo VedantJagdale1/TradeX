@@ -25,6 +25,11 @@ private struct Account {
         context = ModelContext(container)
         manager = PortfolioManager()
         manager.quoteProvider = { _ in quote }
+
+        // These suites assert exact cash movements, so they trade at clean prices.
+        // Charges have their own suite; mixing the two would make every arithmetic
+        // assertion here a test of the tax code as well.
+        manager.settings(in: context).brokerProfile = .none
     }
 
     var cash: Double { manager.settings(in: context).availableCash }

@@ -16,12 +16,12 @@ struct TradeHistoryView: View {
     }
 
     private var totalRealizedPnL: Double {
-        closedTrades.reduce(0) { $0 + ($1.realizedPnL ?? 0) }
+        closedTrades.reduce(0) { $0 + ($1.netRealizedPnL ?? 0) }
     }
 
     private var winRate: Double {
         guard !closedTrades.isEmpty else { return 0 }
-        let wins = closedTrades.filter { ($0.realizedPnL ?? 0) > 0 }.count
+        let wins = closedTrades.filter { ($0.netRealizedPnL ?? 0) > 0 }.count
         return (Double(wins) / Double(closedTrades.count)) * 100
     }
 
@@ -188,7 +188,7 @@ private extension TradeHistoryView {
                     .font(.subheadline)
                     .fontWeight(.semibold)
 
-                if let realizedPnL = trade.realizedPnL {
+                if let realizedPnL = trade.netRealizedPnL {
                     Text("\(realizedPnL >= 0 ? "+" : "")₹\(realizedPnL, specifier: "%.2f")")
                         .font(.caption)
                         .fontWeight(.bold)
