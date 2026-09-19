@@ -96,17 +96,35 @@ class MarketAPIService {
         }
         
         
+        let bars = chartResult.indicators?.quote?.first
+
         var points: [ChartPoint] = []
         for (index, timestamp) in timestamps.enumerated() {
-            if index < closePrices.count, let price = closePrices[index] {
-                let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
-                points.append(ChartPoint(date: date, price: price))
+            guard index < closePrices.count, let price = closePrices[index] else { continue }
+
+            // Each series is indexed in step with the timestamps, but a gap in one does
+            // not imply a gap in another, so every lookup is bounds-checked on its own.
+            func value<T>(_ series: [T?]?) -> T? {
+                guard let series, index < series.count else { return nil }
+                return series[index]
             }
+
+            points.append(
+                ChartPoint(
+                    date: Date(timeIntervalSince1970: TimeInterval(timestamp)),
+                    price: price,
+                    open: value(bars?.open),
+                    high: value(bars?.high),
+                    low: value(bars?.low),
+                    volume: value(bars?.volume)
+                )
+            )
         }
-        
+
         return ChartSeries(
             points: points,
-            quote: try? StockQuote(meta: chartResult.meta)
+            quote: try? StockQuote(meta: chartResult.meta),
+            rangeBaseline: chartResult.meta.chartPreviousClose
         )
     }
     
@@ -322,6 +340,10 @@ struct YahooIndicators: Decodable {
 
 struct YahooQuoteArray: Decodable {
     let close: [Double?]?
+    let open: [Double?]?
+    let high: [Double?]?
+    let low: [Double?]?
+    let volume: [Int?]?
 }
 
 
@@ -329,6 +351,24 @@ struct ChartPoint: Identifiable, Sendable {
     let id = UUID()
     let date: Date
     let price: Double
+
+    /// The rest of the bar. Yahoo returns these alongside the close, and without them a
+    /// chart can only draw a line — no candles, no volume, no true range high and low.
+    /// Nil when the payload omitted them for this bar.
+    var open: Double?
+    var high: Double?
+    var low: Double?
+    var volume: Int?
+
+    /// A bar that closed above where it opened. Falls back to flat when the open is
+    /// unknown, so an incomplete bar is never coloured as a decline it didn't have.
+    var isUp: Bool { (open.map { price >= $0 }) ?? true }
+
+    /// True when this bar carries a full high/low range worth drawing a wick for.
+    var hasRange: Bool {
+        guard let high, let low else { return false }
+        return high.isFinite && low.isFinite && high >= low
+    }
 }
 
 
@@ -356,10 +396,25 @@ struct ChartSeries: Sendable {
     let points: [ChartPoint]
 
     /// The quote that came back alongside the series, when the payload carried one.
+    ///
+    /// Its `previousClose` is the close before *this range* began, not yesterday's —
+    /// Yahoo moves `chartPreviousClose` with the range. Reading a day change off it was
+    /// how the detail view came to label a month's decline as today's.
     let quote: StockQuote?
 
+    /// The close the range is measured from: the line above which the period is a gain.
+    let rangeBaseline: Double?
+
     var latestPrice: Double? { quote?.price }
-    var previousClose: Double? { quote?.previousClose }
+
+    /// The highest and lowest traded prices across the range, when the bars carry them.
+    var rangeHigh: ChartPoint? { points.filter(\.hasRange).max { ($0.high ?? 0) < ($1.high ?? 0) } }
+    var rangeLow: ChartPoint? {
+        points.filter(\.hasRange).min { ($0.low ?? .infinity) < ($1.low ?? .infinity) }
+    }
+
+    /// True when enough bars carry volume to be worth plotting.
+    var hasVolume: Bool { points.contains { ($0.volume ?? 0) > 0 } }
 
     /// Prefers the live quote, falling back to the most recent close.
     var displayPrice: Double? {

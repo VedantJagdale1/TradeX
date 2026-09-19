@@ -32,7 +32,32 @@ struct StockDetailView: View {
     @State private var selectedRange = "1mo"
     @State private var isLoading = true
     @State private var loadFailed = false
+
+    /// The day quote, fetched on its own at a one-day range.
+    ///
+    /// It used to be taken from whichever range the chart was showing, but Yahoo moves
+    /// `chartPreviousClose` with the range — so on the 1MO tab "Today" was reporting
+    /// the month's move, sign and all.
     @State private var quote: StockQuote?
+
+    /// The close this range is measured from, and what the chart is coloured against.
+    @State private var rangeBaseline: Double?
+
+    @State private var chartStyle: ChartStyle = .line
+    @State private var showsVolume = true
+
+    /// Measured, because bar widths have to be given in points.
+    ///
+    /// `.ratio` sizes a bar against an inferred category step, which a continuous date
+    /// axis does not provide — the bars collapse to nothing and the volume strip renders
+    /// empty. Seeded at roughly a phone's plot width so the first frame is not blank.
+    @State private var plotWidth: CGFloat = 320
+
+    enum ChartStyle: String, CaseIterable, Identifiable {
+        case line, candle
+        var id: String { rawValue }
+        var symbol: String { self == .line ? "chart.xyaxis.line" : "chart.bar.fill" }
+    }
 
     let ranges = ["1d", "5d", "1mo", "6mo", "1y"]
 
@@ -63,12 +88,83 @@ struct StockDetailView: View {
     /// The y-axis window. Also supplies the area fill's floor — an `AreaMark` created with
     /// `y:` alone fills down to zero, which sits far outside this domain and spills the
     /// gradient past the chart's frame and over the rest of the screen.
-    private var priceDomain: ClosedRange<Double> {
-        let prices = chartData.map(\.price)
-        let low = (prices.min() ?? 0) * 0.99
-        let high = (prices.max() ?? 100) * 1.01
+    /// The band the price itself occupies — the area fill's floor, and the ceiling
+    /// the volume bars stop at.
+    private var priceBand: ClosedRange<Double> {
+        // Candles are drawn to their wicks, so a band built from closes alone would
+        // clip them. The baseline is included too, or the reference line can fall
+        // outside the plot and simply not appear.
+        var lows = chartData.map { $0.low ?? $0.price }
+        var highs = chartData.map { $0.high ?? $0.price }
+        if let rangeBaseline {
+            lows.append(rangeBaseline)
+            highs.append(rangeBaseline)
+        }
+
+        let low = (lows.min() ?? 0) * 0.99
+        let high = (highs.max() ?? 100) * 1.01
         guard low < high else { return low...(low + 1) }
         return low...high
+    }
+
+    /// The whole plot: the price band, plus the strip below it given over to volume.
+    ///
+    /// The two are kept apart deliberately. Filling the area down to the chart's floor
+    /// instead of the price band's painted the gradient straight over the volume bars
+    /// and hid them completely.
+    private var priceDomain: ClosedRange<Double> {
+        let band = priceBand
+        guard plotsVolume else { return band }
+        let floor = band.lowerBound - (band.upperBound - band.lowerBound) * Self.volumeBandShare
+        return floor...band.upperBound
+    }
+
+    /// The share of the plot height given over to volume bars.
+    private static let volumeBandShare = 0.22
+
+    private var plotsVolume: Bool {
+        showsVolume && chartData.contains { ($0.volume ?? 0) > 0 }
+    }
+
+    private var maxVolume: Double {
+        Double(chartData.compactMap(\.volume).max() ?? 0)
+    }
+
+    /// One bar's share of the plot, leaving a gap between neighbours.
+    private func barWidth(_ fill: CGFloat) -> MarkDimension {
+        .fixed(max(1, plotWidth / CGFloat(max(chartData.count, 1)) * fill))
+    }
+
+    /// Maps a bar's volume into the strip reserved for it, so the busiest bar reaches
+    /// exactly the foot of the price band and none of them intrude on it.
+    private func volumeHeight(_ volume: Int?) -> Double {
+        let floor = priceDomain.lowerBound
+        guard plotsVolume, maxVolume > 0, let volume, volume > 0 else { return floor }
+        return floor + (priceBand.lowerBound - floor) * (Double(volume) / maxVolume)
+    }
+
+    /// Where this position was bought, when it is held — the line that turns an
+    /// abstract price chart into "am I up on this".
+    private var averageCost: Double? {
+        let holdings = (try? modelContext.fetch(FetchDescriptor<PortfolioHolding>())) ?? []
+        return holdings.first { $0.symbol == stock.symbol }?.avgBuyPrice
+    }
+
+    /// Date formatting that suits the window on screen.
+    private var axisFormat: Date.FormatStyle {
+        switch selectedRange {
+        case "1d": return .dateTime.hour().minute()
+        case "5d": return .dateTime.weekday(.abbreviated)
+        case "1mo": return .dateTime.day().month(.abbreviated)
+        default: return .dateTime.month(.abbreviated)
+        }
+    }
+
+    /// Change from the point being scrubbed back to the start of the range.
+    private var scrubbedChange: (amount: Double, percent: Double)? {
+        guard let scrubbed, let first = chartData.first?.price, first > 0 else { return nil }
+        let amount = scrubbed.price - first
+        return (amount, amount / first * 100)
     }
 
     var body: some View {
@@ -82,15 +178,23 @@ struct StockDetailView: View {
                     MoneyText(amount: scrubbed?.price ?? currentPrice, font: Theme.Typography.hero)
 
                     if let scrubbed {
-                        // While scrubbing, the change line gives way to the timestamp of
-                        // the point being inspected.
-                        Text(scrubbed.date.formatted(
-                            date: .abbreviated,
-                            time: selectedRange == "1d" ? .shortened : .omitted
-                        ))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
+                        // While scrubbing, the change line gives way to the moment being
+                        // inspected and how far it sits from the start of the range.
+                        HStack(spacing: 6) {
+                            if let move = scrubbedChange {
+                                Text("\(Theme.sign(move.amount))₹\(abs(move.amount), specifier: "%.2f") (\(String(format: "%.2f", move.percent))%)")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(Theme.pnl(move.amount))
+                            }
+
+                            Text(scrubbed.date.formatted(
+                                date: .abbreviated,
+                                time: selectedRange == "1d" ? .shortened : .omitted
+                            ))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
                     } else {
                         HStack(spacing: 6) {
                             HStack(spacing: 4) {
@@ -109,12 +213,31 @@ struct StockDetailView: View {
                 }
                 .padding(.horizontal)
 
-                Picker("Range", selection: $selectedRange) {
-                    ForEach(ranges, id: \.self) { range in
-                        Text(range.uppercased()).tag(range)
+                HStack(spacing: 12) {
+                    Picker("Range", selection: $selectedRange) {
+                        ForEach(ranges, id: \.self) { range in
+                            Text(range.uppercased()).tag(range)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Menu {
+                        Picker("Style", selection: $chartStyle) {
+                            Label("Line", systemImage: "chart.xyaxis.line").tag(ChartStyle.line)
+                            Label("Candles", systemImage: "chart.bar.fill").tag(ChartStyle.candle)
+                        }
+                        Toggle("Volume", isOn: $showsVolume)
+                    } label: {
+                        Image(systemName: chartStyle.symbol)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 34, height: 30)
+                            .background(
+                                RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous)
+                                    .fill(Color.secondary.opacity(0.15))
+                            )
                     }
                 }
-                .pickerStyle(.segmented)
                 .padding(.horizontal)
 
                 ZStack {
@@ -122,66 +245,8 @@ struct StockDetailView: View {
                         ProgressView()
                             .frame(height: 220)
                     } else if !chartData.isEmpty {
-                        Chart {
-                            ForEach(chartData) { point in
-                                // Area first so the line draws on top of it.
-                                AreaMark(
-                                    x: .value("Time", point.date),
-                                    yStart: .value("Low", priceDomain.lowerBound),
-                                    yEnd: .value("Price", point.price)
-                                )
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            isPositive ? Theme.profit.opacity(0.25) : Theme.loss.opacity(0.25),
-                                            Color.clear
-                                        ]),
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                .interpolationMethod(.catmullRom)
-
-                                LineMark(
-                                    x: .value("Time", point.date),
-                                    y: .value("Price", point.price)
-                                )
-                                .foregroundStyle(isPositive ? Theme.profit : Theme.loss)
-                                .interpolationMethod(.catmullRom)
-                            }
-
-                            if let scrubbed {
-                                RuleMark(x: .value("Time", scrubbed.date))
-                                    .foregroundStyle(Color.secondary.opacity(0.5))
-                                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-
-                                PointMark(
-                                    x: .value("Time", scrubbed.date),
-                                    y: .value("Price", scrubbed.price)
-                                )
-                                .foregroundStyle(isPositive ? Theme.profit : Theme.loss)
-                                .symbolSize(120)
-                            }
-                        }
-                        .chartXAxis(.hidden)
-                        .chartYScale(domain: priceDomain)
-                        .frame(height: 220)
-                        .chartOverlay { proxy in
-                            GeometryReader { geometry in
-                                Rectangle()
-                                    .fill(.clear)
-                                    .contentShape(Rectangle())
-                                    .gesture(
-                                        DragGesture(minimumDistance: 0)
-                                            .onChanged { drag in
-                                                updateScrub(at: drag.location, proxy: proxy, geometry: geometry)
-                                            }
-                                            .onEnded { _ in scrubbed = nil }
-                                    )
-                            }
-                        }
-                        .padding(.horizontal)
-                    } else {
+                        priceChart
+                                        } else {
                         chartUnavailableView
                             .frame(height: 220)
                     }
@@ -392,6 +457,160 @@ private extension StockDetailView {
         }
     }
 
+    /// The price chart: line or candles, with volume along the foot, the range's
+    /// baseline, and your own entry when you hold the stock.
+    var priceChart: some View {
+        Chart {
+            if plotsVolume {
+                ForEach(chartData) { point in
+                    BarMark(
+                        x: .value("Time", point.date),
+                        yStart: .value("Base", priceDomain.lowerBound),
+                        yEnd: .value("Volume", volumeHeight(point.volume)),
+                        width: barWidth(0.55)
+                    )
+                    .foregroundStyle((point.isUp ? Theme.profit : Theme.loss).opacity(0.22))
+                }
+            }
+
+            // The close the range is measured from. Above it the period is a gain,
+            // which is otherwise something you have to infer from the shape.
+            if let rangeBaseline {
+                RuleMark(y: .value("Previous close", rangeBaseline))
+                    .foregroundStyle(Color.secondary.opacity(0.45))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            }
+
+            if let averageCost, priceDomain.contains(averageCost) {
+                RuleMark(y: .value("Your cost", averageCost))
+                    .foregroundStyle(Theme.accent.opacity(0.7))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+                    .annotation(position: .top, alignment: .leading, spacing: 2) {
+                        Text("Your cost")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(Theme.accent)
+                    }
+            }
+
+            switch chartStyle {
+            case .line:
+                ForEach(chartData) { point in
+                    AreaMark(
+                        x: .value("Time", point.date),
+                        yStart: .value("Low", priceBand.lowerBound),
+                        yEnd: .value("Price", point.price)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [(isPositive ? Theme.profit : Theme.loss).opacity(0.22), .clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                    LineMark(
+                        x: .value("Time", point.date),
+                        y: .value("Price", point.price)
+                    )
+                    .foregroundStyle(isPositive ? Theme.profit : Theme.loss)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                }
+
+            case .candle:
+                ForEach(chartData) { point in
+                    if let high = point.high, let low = point.low {
+                        RuleMark(
+                            x: .value("Time", point.date),
+                            yStart: .value("Low", low),
+                            yEnd: .value("High", high)
+                        )
+                        .foregroundStyle(point.isUp ? Theme.profit : Theme.loss)
+                        .lineStyle(StrokeStyle(lineWidth: 1))
+                    }
+
+                    if let open = point.open {
+                        // A doji closes where it opened, which as a rectangle would be
+                        // invisible; the floor gives it a body thin enough to read as flat.
+                        let span = abs(point.price - open)
+                        let pad = max(span, (priceDomain.upperBound - priceDomain.lowerBound) * 0.002) / 2
+                        let mid = (point.price + open) / 2
+
+                        RectangleMark(
+                            x: .value("Time", point.date),
+                            yStart: .value("Open", mid - pad),
+                            yEnd: .value("Close", mid + pad),
+                            width: barWidth(0.65)
+                        )
+                        .foregroundStyle(point.isUp ? Theme.profit : Theme.loss)
+                    }
+                }
+            }
+
+            if let scrubbed {
+                RuleMark(x: .value("Time", scrubbed.date))
+                    .foregroundStyle(Color.secondary.opacity(0.5))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+
+                PointMark(
+                    x: .value("Time", scrubbed.date),
+                    y: .value("Price", scrubbed.price)
+                )
+                .foregroundStyle(isPositive ? Theme.profit : Theme.loss)
+                .symbolSize(110)
+            }
+        }
+        .chartYScale(domain: priceDomain)
+        .chartXAxis {
+            // Dates were hidden entirely before, which left a month of trading with no
+            // way to tell when anything happened.
+            AxisMarks(preset: .aligned, values: .automatic(desiredCount: 4)) { value in
+                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.12))
+                AxisValueLabel {
+                    if let date = value.as(Date.self) {
+                        Text(date, format: axisFormat)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
+                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.12))
+                AxisValueLabel {
+                    if let price = value.as(Double.self) {
+                        // The volume strip sits below every real price, so its ticks
+                        // would otherwise label the chart with prices never traded.
+                        if price >= priceBand.lowerBound {
+                            Text(price, format: .number.precision(.fractionLength(0)))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(height: 260)
+        .chartPlotStyle { plot in
+            plot.onGeometryChange(for: CGFloat.self) { $0.size.width } action: { plotWidth = $0 }
+        }
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { drag in
+                                updateScrub(at: drag.location, proxy: proxy, geometry: geometry)
+                            }
+                            .onEnded { _ in scrubbed = nil }
+                    )
+            }
+        }
+        .padding(.horizontal)
+    }
+
     func loadTimelineMetrics() async {
         isLoading = true
         loadFailed = false
@@ -405,10 +624,15 @@ private extension StockDetailView {
             guard !Task.isCancelled else { return }
 
             chartData = series.points
-            quote = series.quote
+            rangeBaseline = series.rangeBaseline
             if let price = series.displayPrice {
                 currentPrice = price
             }
+
+            // Key Metrics describe *today*, so they come from a one-day quote of their
+            // own rather than from whichever range the chart happens to be showing.
+            // This request is cached, so flicking between ranges does not re-fetch it.
+            quote = try? await MarketAPIService.shared.fetchQuote(symbol: stock.symbol)
         } catch {
             guard !Task.isCancelled else { return }
             print("Failed compiling chart timeline points: \(error)")
