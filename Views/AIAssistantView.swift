@@ -146,8 +146,9 @@ private extension AIAssistantView {
             if message.isUser { Spacer() }
             
             VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
-                Text(message.text)
+                Text(ChatMarkdown.attributed(message.text))
                     .font(.subheadline)
+                    .textSelection(.enabled)
                     .lineSpacing(4)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)

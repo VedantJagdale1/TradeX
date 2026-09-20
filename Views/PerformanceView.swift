@@ -16,7 +16,45 @@ struct GrowthPoint: Identifiable {
     let series: String
 }
 
+/// One day on which both curves have a value, which is what shading between them and
+/// reading a figure off them both require.
+struct PairedGrowth: Identifiable, Equatable {
+    let date: Date
+    let mine: Double
+    let index: Double
+
+    var id: Date { date }
+    var gap: Double { mine - index }
+    var isAhead: Bool { mine >= index }
+}
+
 enum PerformanceMath {
+
+    /// Lines up the two curves by calendar day.
+    ///
+    /// A day present in only one series is dropped: the gap between the lines is
+    /// undefined there, and inventing a value would shade a lead or a lag that was
+    /// never measured.
+    static func pair(portfolio: [GrowthPoint], benchmark: [GrowthPoint]) -> [PairedGrowth] {
+        let calendar = Calendar.current
+        let benchmarkByDay = Dictionary(
+            benchmark.map { (calendar.startOfDay(for: $0.date), $0.value) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+
+        return portfolio.compactMap { point in
+            benchmarkByDay[calendar.startOfDay(for: point.date)].map {
+                PairedGrowth(date: point.date, mine: point.value, index: $0)
+            }
+        }
+    }
+
+    /// The measured day closest to where the finger is, since a scrub lands between them.
+    static func nearest(to date: Date, in pairs: [PairedGrowth]) -> PairedGrowth? {
+        pairs.min {
+            abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+        }
+    }
     static let portfolioSeries = "Your Portfolio"
     static let benchmarkSeries = "NIFTY 50"
     static let base = 100.0
@@ -86,6 +124,9 @@ struct PerformanceView: View {
         guard let earliest = trades.map(\.timestamp).min() else { return false }
         return earliest < Calendar.current.startOfDay(for: Date())
     }
+
+    /// The day under the finger while scrubbing the growth chart.
+    @State private var scrubbedDay: Date?
 
     private var portfolioPoints: [GrowthPoint] { PerformanceMath.portfolioGrowth(from: snapshots) }
     private var benchmarkPoints: [GrowthPoint] { PerformanceMath.benchmarkGrowth(from: snapshots) }
@@ -359,10 +400,32 @@ private extension PerformanceView {
         }
     }
 
+    private var paired: [PairedGrowth] {
+        PerformanceMath.pair(portfolio: portfolioPoints, benchmark: benchmarkPoints)
+    }
+
+    /// The pair nearest the scrubbed day, for the readout above the chart.
+    private var scrubbedPair: PairedGrowth? {
+        scrubbedDay.flatMap { PerformanceMath.nearest(to: $0, in: paired) }
+    }
+
     var growthChart: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Growth of ₹100")
-                .font(.headline)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Growth of ₹100")
+                    .font(.headline)
+                Spacer()
+
+                if let pair = scrubbedPair {
+                    // Scrubbing answers the question the card is really asking: on that
+                    // day, how far ahead or behind were you?
+                    Text("\(pair.date, format: .dateTime.day().month(.abbreviated)) · \(Theme.sign(pair.gap))\(abs(pair.gap), specifier: "%.2f")")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Theme.pnl(pair.gap))
+                        .contentTransition(.numericText(value: pair.gap))
+                }
+            }
 
             Chart {
                 // The rebase point: anything above this line is a gain.
@@ -370,13 +433,35 @@ private extension PerformanceView {
                     .foregroundStyle(Color.secondary.opacity(0.35))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
 
+                // The gap between the two lines is the whole point of the card, and it
+                // was left to the eye to estimate. Shading it states it.
+                ForEach(paired) { pair in
+                    AreaMark(
+                        x: .value("Date", pair.date),
+                        yStart: .value("Index", pair.index),
+                        yEnd: .value("Mine", pair.mine)
+                    )
+                    .foregroundStyle((pair.isAhead ? Theme.profit : Theme.loss).opacity(0.16))
+                }
+
                 ForEach(portfolioPoints + benchmarkPoints) { point in
                     LineMark(
                         x: .value("Date", point.date),
                         y: .value("Growth", point.value)
                     )
                     .foregroundStyle(by: .value("Series", point.series))
-                    .interpolationMethod(.catmullRom)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                }
+
+                if let pair = scrubbedPair {
+                    RuleMark(x: .value("Date", pair.date))
+                        .foregroundStyle(Color.secondary.opacity(0.5))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+
+                    PointMark(x: .value("Date", pair.date), y: .value("Mine", pair.mine))
+                        .foregroundStyle(Theme.accent)
+                    PointMark(x: .value("Date", pair.date), y: .value("Index", pair.index))
+                        .foregroundStyle(Color.secondary)
                 }
             }
             .chartForegroundStyleScale([
@@ -386,6 +471,22 @@ private extension PerformanceView {
             .chartYScale(domain: growthDomain)
             .chartLegend(position: .bottom)
             .frame(height: 240)
+            .chartOverlay { proxy in
+                GeometryReader { geometry in
+                    Rectangle()
+                        .fill(.clear)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { drag in
+                                    guard let plot = proxy.plotFrame else { return }
+                                    let x = drag.location.x - geometry[plot].origin.x
+                                    scrubbedDay = proxy.value(atX: x, as: Date.self)
+                                }
+                                .onEnded { _ in scrubbedDay = nil }
+                        )
+                }
+            }
         }
         .card()
     }

@@ -26,6 +26,7 @@
 		8EAA00062FFFFFFF00AB9A5C /* TradeHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00052FFFFFFF00AB9A5C /* TradeHistoryView.swift */; };
 		8EAA00082FFFFFFF00AB9A5C /* PerformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */; };
 		8EAA000A2FFFFFFF00AB9A5C /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA00092FFFFFFF00AB9A5C /* Theme.swift */; };
+		D417E9031E944AED81542C66 /* ChatMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99513BD5145949F1A353BC0A /* ChatMarkdown.swift */; };
 		8EAA000C2FFFFFFF00AB9A5C /* OrderTicketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA000B2FFFFFFF00AB9A5C /* OrderTicketView.swift */; };
 		8EAA000E2FFFFFFF00AB9A5C /* WatchlistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA000D2FFFFFFF00AB9A5C /* WatchlistItem.swift */; };
 		8EAA00102FFFFFFF00AB9A5C /* PriceAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA000F2FFFFFFF00AB9A5C /* PriceAlert.swift */; };
@@ -50,6 +51,7 @@
 		572EBD7BD562436BA3CA65CD /* BracketOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C26459C9D624D3783EDA367 /* BracketOrderTests.swift */; };
 		7C3D3D1000D948669435EF2F /* TransactionCostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E77746EAE75441087EA81AE /* TransactionCostTests.swift */; };
 		D3C52A396BD347B9AFCD2B05 /* ChartDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7782188C35194BB48691C2D2 /* ChartDataTests.swift */; };
+		C3074D538CC34F919857B634 /* ChatMarkdownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA0323481F147FB8026A32E /* ChatMarkdownTests.swift */; };
 		8EBB06052FFFFFFF00AB9A5C /* CorporateAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05052FFFFFFF00AB9A5C /* CorporateAction.swift */; };
 		222045C7F3FE48BFBD85A0EB /* TransactionCosts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A76C42DD9B74B39BB11017A /* TransactionCosts.swift */; };
 		8EBB04072FFFFFFF00AB9A5C /* CorporateActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03072FFFFFFF00AB9A5C /* CorporateActionTests.swift */; };
@@ -90,6 +92,7 @@
 		8EAA00052FFFFFFF00AB9A5C /* TradeHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradeHistoryView.swift; sourceTree = "<group>"; };
 		8EAA00072FFFFFFF00AB9A5C /* PerformanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceView.swift; sourceTree = "<group>"; };
 		8EAA00092FFFFFFF00AB9A5C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		99513BD5145949F1A353BC0A /* ChatMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMarkdown.swift; sourceTree = "<group>"; };
 		8EAA000B2FFFFFFF00AB9A5C /* OrderTicketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderTicketView.swift; sourceTree = "<group>"; };
 		8EAA000D2FFFFFFF00AB9A5C /* WatchlistItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistItem.swift; sourceTree = "<group>"; };
 		8EAA000F2FFFFFFF00AB9A5C /* PriceAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceAlert.swift; sourceTree = "<group>"; };
@@ -115,6 +118,7 @@
 		1C26459C9D624D3783EDA367 /* BracketOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BracketOrderTests.swift; sourceTree = "<group>"; };
 		1E77746EAE75441087EA81AE /* TransactionCostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionCostTests.swift; sourceTree = "<group>"; };
 		7782188C35194BB48691C2D2 /* ChartDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartDataTests.swift; sourceTree = "<group>"; };
+		3FA0323481F147FB8026A32E /* ChatMarkdownTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMarkdownTests.swift; sourceTree = "<group>"; };
 		8EBB05052FFFFFFF00AB9A5C /* CorporateAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorporateAction.swift; sourceTree = "<group>"; };
 		9A76C42DD9B74B39BB11017A /* TransactionCosts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionCosts.swift; sourceTree = "<group>"; };
 		8EBB03072FFFFFFF00AB9A5C /* CorporateActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorporateActionTests.swift; sourceTree = "<group>"; };
@@ -227,6 +231,7 @@
 			isa = PBXGroup;
 			children = (
 				8EAA00092FFFFFFF00AB9A5C /* Theme.swift */,
+				99513BD5145949F1A353BC0A /* ChatMarkdown.swift */,
 				8EBF52252FF5AA5100AB9A5C /* Constants.swift */,
 			);
 			path = Core;
@@ -241,6 +246,7 @@
 				1C26459C9D624D3783EDA367 /* BracketOrderTests.swift */,
 				1E77746EAE75441087EA81AE /* TransactionCostTests.swift */,
 				7782188C35194BB48691C2D2 /* ChartDataTests.swift */,
+				3FA0323481F147FB8026A32E /* ChatMarkdownTests.swift */,
 				8EBB03052FFFFFFF00AB9A5C /* AppLockTests.swift */,
 				8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */,
 				8EBB03032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift */,
@@ -375,6 +381,7 @@
 				8EAA000E2FFFFFFF00AB9A5C /* WatchlistItem.swift in Sources */,
 				8EAA000C2FFFFFFF00AB9A5C /* OrderTicketView.swift in Sources */,
 				8EAA000A2FFFFFFF00AB9A5C /* Theme.swift in Sources */,
+				D417E9031E944AED81542C66 /* ChatMarkdown.swift in Sources */,
 				8EAA00082FFFFFFF00AB9A5C /* PerformanceView.swift in Sources */,
 				8EAA00062FFFFFFF00AB9A5C /* TradeHistoryView.swift in Sources */,
 				8EAA00042FFFFFFF00AB9A5C /* Trade.swift in Sources */,
@@ -405,6 +412,7 @@
 				572EBD7BD562436BA3CA65CD /* BracketOrderTests.swift in Sources */,
 				7C3D3D1000D948669435EF2F /* TransactionCostTests.swift in Sources */,
 				D3C52A396BD347B9AFCD2B05 /* ChartDataTests.swift in Sources */,
+				C3074D538CC34F919857B634 /* ChatMarkdownTests.swift in Sources */,
 				8EBB04052FFFFFFF00AB9A5C /* AppLockTests.swift in Sources */,
 				8EBB04042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift in Sources */,
 				8EBB04032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift in Sources */,

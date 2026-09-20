@@ -31,6 +31,22 @@ struct DashboardView: View {
     var pnlPercentage: Double { totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0 }
     var isProfit: Bool { totalPnL >= 0 }
     
+    /// Holdings largest first, which is the order the risk actually runs in.
+    var rankedHoldings: [PortfolioHolding] {
+        holdings.sorted { $0.currentValue > $1.currentValue }
+    }
+
+    var largestHolding: PortfolioHolding? { rankedHoldings.first }
+
+    var totalHoldingsValue: Double { holdings.reduce(0) { $0 + $1.currentValue } }
+
+    func weight(of holding: PortfolioHolding) -> Double {
+        totalHoldingsValue > 0 ? holding.currentValue / totalHoldingsValue * 100 : 0
+    }
+
+    /// Concentration in the single biggest name.
+    var topWeight: Double { largestHolding.map(weight) ?? 0 }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -94,15 +110,59 @@ struct DashboardView: View {
                         Text("Portfolio Distribution")
                             .font(.headline)
                         
-                        Chart(holdings) { holding in
-                            SectorMark(
-                                angle: .value("Value", holding.currentValue),
-                                innerRadius: .ratio(0.7),
-                                angularInset: 2.0
-                            )
-                            .foregroundStyle(by: .value("Stock", holding.symbol))
+                        HStack(spacing: 20) {
+                            ZStack {
+                                Chart(holdings) { holding in
+                                    SectorMark(
+                                        angle: .value("Value", holding.currentValue),
+                                        innerRadius: .ratio(0.68),
+                                        angularInset: 2.0
+                                    )
+                                    .foregroundStyle(by: .value("Stock", holding.symbol))
+                                    .cornerRadius(3)
+                                    // The largest position is the one that decides how
+                                    // the month goes, so it is the one pulled forward.
+                                    .opacity(holding.symbol == largestHolding?.symbol ? 1 : 0.55)
+                                }
+                                .chartLegend(.hidden)
+
+                                // The hole was empty. The number that belongs in it is
+                                // how much of the portfolio rides on one name.
+                                VStack(spacing: 0) {
+                                    Text("\(topWeight, specifier: "%.0f")%")
+                                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                                        .contentTransition(.numericText(value: topWeight))
+                                    Text(largestHolding?.symbol ?? "")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .frame(width: 150, height: 150)
+
+                            // A colour swatch alone leaves you guessing at the split.
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(rankedHoldings.prefix(5), id: \.symbol) { holding in
+                                    HStack(spacing: 8) {
+                                        Text(holding.symbol)
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                            .lineLimit(1)
+                                        Spacer(minLength: 4)
+                                        Text("\(weight(of: holding), specifier: "%.1f")%")
+                                            .font(.caption.monospacedDigit())
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                if holdings.count > 5 {
+                                    Text("+\(holdings.count - 5) more")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(height: 150)
                     }
                     .card()
                 }

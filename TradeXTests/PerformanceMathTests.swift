@@ -97,3 +97,88 @@ struct PerformanceMathTests {
         #expect((points.last?.value ?? 0).isFinite)
     }
 }
+
+@MainActor
+struct GrowthPairingTests {
+
+    private func day(_ n: Int) -> Date {
+        Calendar.current.startOfDay(for: Date(timeIntervalSince1970: 1_756_000_000))
+            .addingTimeInterval(TimeInterval(n) * 86_400)
+    }
+
+    private func point(_ n: Int, _ value: Double, _ series: String) -> GrowthPoint {
+        GrowthPoint(date: day(n), value: value, series: series)
+    }
+
+    @Test("Both curves line up day by day")
+    func pairsByDay() {
+        let pairs = PerformanceMath.pair(
+            portfolio: [point(0, 100, "p"), point(1, 102, "p"), point(2, 101, "p")],
+            benchmark: [point(0, 100, "b"), point(1, 99, "b"), point(2, 103, "b")]
+        )
+
+        #expect(pairs.count == 3)
+        #expect(pairs[1].gap == 3)
+        #expect(pairs[1].isAhead)
+        #expect(!pairs[2].isAhead)
+    }
+
+    @Test("A day only one curve has is dropped rather than guessed at")
+    func unmatchedDaysDropped() {
+        // Shading a gap on a day the index was never measured would draw a lead that
+        // did not happen.
+        let pairs = PerformanceMath.pair(
+            portfolio: [point(0, 100, "p"), point(1, 102, "p"), point(5, 110, "p")],
+            benchmark: [point(0, 100, "b"), point(1, 99, "b")]
+        )
+
+        #expect(pairs.count == 2)
+        #expect(!pairs.contains { $0.date == day(5) })
+    }
+
+    @Test("Matching is by calendar day, not exact timestamp")
+    func matchesAcrossTimesOfDay() {
+        let morning = GrowthPoint(date: day(0).addingTimeInterval(9 * 3_600), value: 100, series: "p")
+        let evening = GrowthPoint(date: day(0).addingTimeInterval(18 * 3_600), value: 97, series: "b")
+
+        let pairs = PerformanceMath.pair(portfolio: [morning], benchmark: [evening])
+
+        #expect(pairs.count == 1)
+        #expect(pairs.first?.gap == 3)
+    }
+
+    @Test("Level curves pair with no gap, and count as ahead")
+    func flatIsAhead() {
+        let pairs = PerformanceMath.pair(
+            portfolio: [point(0, 100, "p")], benchmark: [point(0, 100, "b")]
+        )
+        #expect(pairs.first?.gap == 0)
+        #expect(pairs.first?.isAhead == true)
+    }
+
+    @Test("Empty input pairs to nothing")
+    func emptyInput() {
+        #expect(PerformanceMath.pair(portfolio: [], benchmark: [point(0, 100, "b")]).isEmpty)
+        #expect(PerformanceMath.pair(portfolio: [point(0, 100, "p")], benchmark: []).isEmpty)
+    }
+
+    @Test("A scrub between days snaps to the nearest measured one")
+    func nearestSnapsToMeasuredDay() throws {
+        let pairs = PerformanceMath.pair(
+            portfolio: [point(0, 100, "p"), point(3, 105, "p")],
+            benchmark: [point(0, 100, "b"), point(3, 101, "b")]
+        )
+
+        // Two thirds of the way from day 0 to day 3 is nearer day 3.
+        let between = day(0).addingTimeInterval(2 * 86_400)
+        #expect(try #require(PerformanceMath.nearest(to: between, in: pairs)).date == day(3))
+
+        let early = day(0).addingTimeInterval(3_600)
+        #expect(try #require(PerformanceMath.nearest(to: early, in: pairs)).date == day(0))
+    }
+
+    @Test("Scrubbing an empty chart finds nothing rather than trapping")
+    func nearestOnEmpty() {
+        #expect(PerformanceMath.nearest(to: day(0), in: []) == nil)
+    }
+}
