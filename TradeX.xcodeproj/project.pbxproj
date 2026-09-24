@@ -10,6 +10,7 @@
 		8E494E382FFBBD7C00CEBF48 /* GroqService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E494E372FFBBD7A00CEBF48 /* GroqService.swift */; };
 		8E89B9C92FF9889800DB6297 /* StockDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E89B9C82FF9889200DB6297 /* StockDetailView.swift */; };
 		F3EC7CABFC204424931E1287 /* ProtectPositionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 171040D88478463691335121 /* ProtectPositionSheet.swift */; };
+		CA7D17A0DDE142C3800A11BD /* NewsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8771029F994763A7CD85AB /* NewsViews.swift */; };
 		8EBF52272FF5AA5100AB9A5C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF52252FF5AA5100AB9A5C /* Constants.swift */; };
 		8EBF52292FF5AA5100AB9A5C /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF52202FF5AA5100AB9A5C /* DashboardView.swift */; };
 		8EBF522A2FF5AA5100AB9A5C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF52212FF5AA5100AB9A5C /* ContentView.swift */; };
@@ -52,8 +53,10 @@
 		7C3D3D1000D948669435EF2F /* TransactionCostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E77746EAE75441087EA81AE /* TransactionCostTests.swift */; };
 		D3C52A396BD347B9AFCD2B05 /* ChartDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7782188C35194BB48691C2D2 /* ChartDataTests.swift */; };
 		C3074D538CC34F919857B634 /* ChatMarkdownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA0323481F147FB8026A32E /* ChatMarkdownTests.swift */; };
+		6570DCD7B5A843CDB75A6BA3 /* NewsFeedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC55DEE0FDF408B97EED384 /* NewsFeedTests.swift */; };
 		8EBB06052FFFFFFF00AB9A5C /* CorporateAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05052FFFFFFF00AB9A5C /* CorporateAction.swift */; };
 		222045C7F3FE48BFBD85A0EB /* TransactionCosts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A76C42DD9B74B39BB11017A /* TransactionCosts.swift */; };
+		9B22E03A808549FB9C09C9E4 /* NewsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4313F750E51B4349AC3569E4 /* NewsService.swift */; };
 		8EBB04072FFFFFFF00AB9A5C /* CorporateActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03072FFFFFFF00AB9A5C /* CorporateActionTests.swift */; };
 		8EBB06062FFFFFFF00AB9A5C /* TradingStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB05062FFFFFFF00AB9A5C /* TradingStats.swift */; };
 		8EBB04082FFFFFFF00AB9A5C /* TradingStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBB03082FFFFFFF00AB9A5C /* TradingStatsTests.swift */; };
@@ -73,6 +76,7 @@
 		8E494E372FFBBD7A00CEBF48 /* GroqService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqService.swift; sourceTree = "<group>"; };
 		8E89B9C82FF9889200DB6297 /* StockDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockDetailView.swift; sourceTree = "<group>"; };
 		171040D88478463691335121 /* ProtectPositionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtectPositionSheet.swift; sourceTree = "<group>"; };
+		8C8771029F994763A7CD85AB /* NewsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsViews.swift; sourceTree = "<group>"; };
 		8EBF520C2FF5AA2800AB9A5C /* TradeX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TradeX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EBF521D2FF5AA5100AB9A5C /* AIAssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantView.swift; sourceTree = "<group>"; };
 		8EBF521E2FF5AA5100AB9A5C /* PortfolioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioView.swift; sourceTree = "<group>"; };
@@ -119,8 +123,10 @@
 		1E77746EAE75441087EA81AE /* TransactionCostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionCostTests.swift; sourceTree = "<group>"; };
 		7782188C35194BB48691C2D2 /* ChartDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartDataTests.swift; sourceTree = "<group>"; };
 		3FA0323481F147FB8026A32E /* ChatMarkdownTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMarkdownTests.swift; sourceTree = "<group>"; };
+		1AC55DEE0FDF408B97EED384 /* NewsFeedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsFeedTests.swift; sourceTree = "<group>"; };
 		8EBB05052FFFFFFF00AB9A5C /* CorporateAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorporateAction.swift; sourceTree = "<group>"; };
 		9A76C42DD9B74B39BB11017A /* TransactionCosts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionCosts.swift; sourceTree = "<group>"; };
+		4313F750E51B4349AC3569E4 /* NewsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsService.swift; sourceTree = "<group>"; };
 		8EBB03072FFFFFFF00AB9A5C /* CorporateActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorporateActionTests.swift; sourceTree = "<group>"; };
 		8EBB05062FFFFFFF00AB9A5C /* TradingStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradingStats.swift; sourceTree = "<group>"; };
 		8EBB03082FFFFFFF00AB9A5C /* TradingStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradingStatsTests.swift; sourceTree = "<group>"; };
@@ -194,6 +200,7 @@
 				8EAA00052FFFFFFF00AB9A5C /* TradeHistoryView.swift */,
 				8E89B9C82FF9889200DB6297 /* StockDetailView.swift */,
 				171040D88478463691335121 /* ProtectPositionSheet.swift */,
+				8C8771029F994763A7CD85AB /* NewsViews.swift */,
 				8EBF521D2FF5AA5100AB9A5C /* AIAssistantView.swift */,
 				8EBF521E2FF5AA5100AB9A5C /* PortfolioView.swift */,
 				8EBF521F2FF5AA5100AB9A5C /* MarketExplorerView.swift */,
@@ -209,6 +216,7 @@
 				8EBB05062FFFFFFF00AB9A5C /* TradingStats.swift */,
 				8EBB05052FFFFFFF00AB9A5C /* CorporateAction.swift */,
 				9A76C42DD9B74B39BB11017A /* TransactionCosts.swift */,
+				4313F750E51B4349AC3569E4 /* NewsService.swift */,
 				8EBB05042FFFFFFF00AB9A5C /* Sector.swift */,
 				8EBB05022FFFFFFF00AB9A5C /* StoredChatMessage.swift */,
 				8EBB05012FFFFFFF00AB9A5C /* AppLock.swift */,
@@ -247,6 +255,7 @@
 				1E77746EAE75441087EA81AE /* TransactionCostTests.swift */,
 				7782188C35194BB48691C2D2 /* ChartDataTests.swift */,
 				3FA0323481F147FB8026A32E /* ChatMarkdownTests.swift */,
+				1AC55DEE0FDF408B97EED384 /* NewsFeedTests.swift */,
 				8EBB03052FFFFFFF00AB9A5C /* AppLockTests.swift */,
 				8EBB03042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift */,
 				8EBB03032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift */,
@@ -370,6 +379,7 @@
 				8EBB06062FFFFFFF00AB9A5C /* TradingStats.swift in Sources */,
 				8EBB06052FFFFFFF00AB9A5C /* CorporateAction.swift in Sources */,
 				222045C7F3FE48BFBD85A0EB /* TransactionCosts.swift in Sources */,
+				9B22E03A808549FB9C09C9E4 /* NewsService.swift in Sources */,
 				8EBB06042FFFFFFF00AB9A5C /* Sector.swift in Sources */,
 				8EBB06032FFFFFFF00AB9A5C /* SettingsView.swift in Sources */,
 				8EBB06022FFFFFFF00AB9A5C /* StoredChatMessage.swift in Sources */,
@@ -387,6 +397,7 @@
 				8EAA00042FFFFFFF00AB9A5C /* Trade.swift in Sources */,
 				8E89B9C92FF9889800DB6297 /* StockDetailView.swift in Sources */,
 				F3EC7CABFC204424931E1287 /* ProtectPositionSheet.swift in Sources */,
+				CA7D17A0DDE142C3800A11BD /* NewsViews.swift in Sources */,
 				8EBF52362FF6F94700AB9A5C /* MarketExplorerViewModel.swift in Sources */,
 				8EBF52272FF5AA5100AB9A5C /* Constants.swift in Sources */,
 				8EBF523C2FF90C8100AB9A5C /* PortfolioManager.swift in Sources */,
@@ -413,6 +424,7 @@
 				7C3D3D1000D948669435EF2F /* TransactionCostTests.swift in Sources */,
 				D3C52A396BD347B9AFCD2B05 /* ChartDataTests.swift in Sources */,
 				C3074D538CC34F919857B634 /* ChatMarkdownTests.swift in Sources */,
+				6570DCD7B5A843CDB75A6BA3 /* NewsFeedTests.swift in Sources */,
 				8EBB04052FFFFFFF00AB9A5C /* AppLockTests.swift in Sources */,
 				8EBB04042FFFFFFF00AB9A5C /* SectorAndHolidayTests.swift in Sources */,
 				8EBB04032FFFFFFF00AB9A5C /* PriceAlertServiceTests.swift in Sources */,

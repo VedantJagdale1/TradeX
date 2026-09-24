@@ -38,10 +38,8 @@ struct DashboardView: View {
 
     var largestHolding: PortfolioHolding? { rankedHoldings.first }
 
-    var totalHoldingsValue: Double { holdings.reduce(0) { $0 + $1.currentValue } }
-
     func weight(of holding: PortfolioHolding) -> Double {
-        totalHoldingsValue > 0 ? holding.currentValue / totalHoldingsValue * 100 : 0
+        totalStockValue > 0 ? holding.currentValue / totalStockValue * 100 : 0
     }
 
     /// Concentration in the single biggest name.
@@ -216,6 +214,12 @@ struct DashboardView: View {
                             .card()
                         }
                     }
+                }
+
+                if !holdings.isEmpty {
+                    HoldingsNewsCard(
+                        holdings: rankedHoldings.map { ($0.symbol, $0.companyName) }
+                    )
                 }
             }
             .padding()

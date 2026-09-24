@@ -329,6 +329,9 @@ struct StockDetailView: View {
                         .padding(.horizontal)
                     }
                 }
+
+                StockNewsSection(companyName: quote?.longName ?? stock.name)
+                    .padding(.horizontal)
             }
             .padding(.vertical)
         }
